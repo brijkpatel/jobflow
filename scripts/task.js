@@ -24,6 +24,9 @@ const STEP_DESC = {
   merged:        'Squash merged to main, branch deleted',
 };
 
+let lastTaskId = '';
+let taskIdCounter = 0;
+
 function repoRoot() {
   return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
 }
@@ -59,7 +62,17 @@ function now() {
 }
 
 function taskId() {
-  return new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+  const iso = new Date().toISOString();
+  let newId = iso.replace(/[-:T.]/g, '').slice(0, 17);
+  
+  if (newId === lastTaskId) {
+    taskIdCounter++;
+    newId = newId + String(taskIdCounter).padStart(3, '0');
+  } else {
+    lastTaskId = newId;
+    taskIdCounter = 0;
+  }
+  return newId;
 }
 
 function findPlan(br) {
@@ -85,6 +98,19 @@ function completedSteps(task) {
   return STEPS.filter(s => task.steps[s]);
 }
 
+function getTaskById(id, data) {
+  if (data.current?.id === id) return data.current;
+  for (const t of data.queue) if (t.id === id) return t;
+  for (const t of data.completed) if (t.id === id) return t;
+  return null;
+}
+
+function isTaskReady(task, data) {
+  if (!task.depends_on || task.depends_on.length === 0) return true;
+  const completedIds = data.completed.map(t => t.id);
+  return task.depends_on.every(id => completedIds.includes(id));
+}
+
 // ── commands ──────────────────────────────────────────────────────────────────
 
 function cmdStatus() {
@@ -92,9 +118,22 @@ function cmdStatus() {
   const task = data.current;
   if (!task) {
     console.log('No task in progress.');
-    if (data.queue.length) {
-      console.log(`\nQueued (${data.queue.length}):`);
-      data.queue.forEach(t => console.log(`  • ${t.description}`));
+    const nextReady = data.queue.find(t => isTaskReady(t, data));
+    if (nextReady) {
+      console.log(`\nNext ready: ${nextReady.description}`);
+      console.log(`Run: task resume`);
+    } else if (data.queue.length) {
+      console.log(`\nQueued (${data.queue.length}): all blocked by dependencies`);
+      data.queue.forEach(t => {
+        if (t.depends_on?.length) {
+          const depNames = t.depends_on
+            .map(id => getTaskById(id, data)?.description || '?')
+            .join(', ');
+          console.log(`  [blocked] ${t.description} — waiting on: ${depNames}`);
+        }
+      });
+    } else {
+      console.log('Queue is empty.');
     }
     return;
   }
@@ -106,9 +145,22 @@ function cmdStatus() {
   console.log(`Done:   ${done.join(', ') || 'none'}`);
   if (next) console.log(`Next:   ${next} — ${STEP_DESC[next]}`);
   else      console.log(`Next:   merge, then run: task finish`);
+  if (task.subtask_ids?.length) {
+    const descs = task.subtask_ids.map(id => {
+      const st = getTaskById(id, data);
+      return st ? st.description : '?';
+    }).join(', ');
+    console.log(`Subtasks (${task.subtask_ids.length}): ${descs}`);
+  }
   if (data.queue.length) {
     console.log(`\nQueued (${data.queue.length}):`);
-    data.queue.forEach(t => console.log(`  • ${t.description}`));
+    data.queue.forEach(t => {
+      const ready = isTaskReady(t, data);
+      const status = ready ? '[ready]' : `[blocked]`;
+      let prefix = '  • ';
+      if (t.parent_id) prefix = '  ↳ ';
+      console.log(`${prefix}${status} ${t.description}`);
+    });
   }
 }
 
@@ -126,6 +178,7 @@ function cmdStart([...rest]) {
     id: taskId(), description: desc, branch: br, plan: findPlan(br),
     steps: Object.fromEntries(STEPS.map(s => [s, false])),
     last_completed: null, started: now(), updated: now(),
+    parent_id: null, subtask_ids: [], depends_on: [], status: 'ready',
   };
   save(data);
   commit(`task: start — ${desc}`);
@@ -161,21 +214,187 @@ function cmdFinish() {
   task.updated = now();
   data.completed.push(task);
   data.current = null;
+
+  const unblocked = [];
+  for (const qtask of data.queue) {
+    if (qtask.status === 'ready') continue;
+    if (!qtask.depends_on?.length) {
+      qtask.status = 'ready';
+      unblocked.push(qtask.description);
+    } else if (qtask.depends_on.every(id => data.completed.map(c => c.id).includes(id))) {
+      qtask.status = 'ready';
+      unblocked.push(qtask.description);
+    }
+  }
+
   save(data);
   commit(`task: finish — ${task.description}`);
   console.log(`✓ Finished: ${task.description}`);
   console.log(`  Completed: ${data.completed.length} | Queued: ${data.queue.length}`);
-  if (data.queue.length) console.log(`  Next up:   ${data.queue[0].description}`);
+  if (unblocked.length) console.log(`  Unblocked: ${unblocked.join(', ')}`);
+  if (data.queue.length) {
+    const nextReady = data.queue.find(t => isTaskReady(t, data));
+    if (nextReady) console.log(`  Next up:   ${nextReady.description}`);
+  }
 }
 
 function cmdQueue([...rest]) {
   const desc = rest.join(' ');
   if (!desc) { console.error('Usage: task queue <description>'); process.exit(1); }
   const data = load();
-  data.queue.push({ id: taskId(), description: desc, status: 'queued' });
+  data.queue.push({
+    id: taskId(), description: desc,
+    depends_on: [], status: 'ready', parent_id: null, subtask_ids: [],
+    steps: Object.fromEntries(STEPS.map(s => [s, false])),
+    started: now(), updated: now(),
+  });
   save(data);
   commit(`task: queue — ${desc}`);
   console.log(`Queued: ${desc}  (depth: ${data.queue.length})`);
+}
+
+function cmdExtractPlan([planFile]) {
+  const data = load();
+  if (!data.current) {
+    console.error('No task in progress. Start a task first.');
+    process.exit(1);
+  }
+
+  const file = planFile || data.current.plan;
+  const root = repoRoot();
+  const fullPath = path.join(root, file);
+
+  if (!fs.existsSync(fullPath)) {
+    console.error(`Plan file not found: ${file}`);
+    process.exit(1);
+  }
+
+  const content = fs.readFileSync(fullPath, 'utf8');
+  const lines = content.split('\n');
+
+  let subtasksStartIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].match(/^###\s+Subtasks?/i)) {
+      subtasksStartIdx = i;
+      break;
+    }
+  }
+
+  if (subtasksStartIdx === -1) {
+    console.log('No ### Subtasks section found in plan.');
+    return;
+  }
+
+  const subtasks = [];
+  const nameToId = {};
+
+  for (let i = subtasksStartIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (line.match(/^#{1,2}\s/)) break;
+
+    const match = line.match(/^\d+\.\s+(.+?)(?:\s*\(depends on:\s*(.+?)\))?$/);
+    if (!match) continue;
+
+    const desc = match[1].trim();
+    const depStr = match[2]?.trim() || '';
+    const deps = depStr ? depStr.split(',').map(d => d.trim()) : [];
+
+    const tid = taskId();
+    subtasks.push({ desc, deps, tid });
+    nameToId[desc] = tid;
+  }
+
+  if (subtasks.length === 0) {
+    console.log('No subtasks found in ### Subtasks section.');
+    return;
+  }
+
+  const createdTasks = [];
+  for (const st of subtasks) {
+    const dependsOn = st.deps
+      .map(depName => nameToId[depName])
+      .filter(id => id);
+
+    const task = {
+      id: st.tid,
+      description: st.desc,
+      branch: data.current.branch,
+      plan: data.current.plan,
+      steps: Object.fromEntries(STEPS.map(s => [s, false])),
+      last_completed: null,
+      started: now(),
+      updated: now(),
+      parent_id: data.current.id,
+      subtask_ids: [],
+      depends_on: dependsOn,
+      status: dependsOn.length === 0 ? 'ready' : 'blocked',
+    };
+
+    data.queue.push(task);
+    createdTasks.push({ desc: st.desc, status: task.status, deps: st.deps });
+  }
+
+  if (!data.current.subtask_ids) data.current.subtask_ids = [];
+  data.current.subtask_ids.push(...subtasks.map(s => s.tid));
+  data.current.updated = now();
+
+  save(data);
+  commit(`task: extract plan — ${subtasks.length} subtasks`);
+
+  console.log(`Extracted ${subtasks.length} subtasks:`);
+  createdTasks.forEach(t => {
+    const status = t.status === 'ready' ? '[ready]' : `[blocked: ${t.deps.join(', ')}]`;
+    console.log(`  ${status} ${t.desc}`);
+  });
+}
+
+function cmdResume() {
+  const data = load();
+  if (data.current) {
+    console.log('Task in progress:');
+    cmdStatus();
+    return;
+  }
+
+  let nextIdx = -1;
+  for (let i = 0; i < data.queue.length; i++) {
+    if (isTaskReady(data.queue[i], data)) {
+      nextIdx = i;
+      break;
+    }
+  }
+
+  if (nextIdx === -1) {
+    if (data.queue.length) {
+      console.log('All queued tasks are blocked by dependencies.');
+      console.log('Waiting for:');
+      data.queue.forEach(t => {
+        if (t.depends_on?.length) {
+          const depNames = t.depends_on
+            .map(id => getTaskById(id, data)?.description || '?')
+            .join(', ');
+          console.log(`  ${t.description} — waiting on: ${depNames}`);
+        }
+      });
+    } else {
+      console.log('Queue is empty.');
+    }
+    return;
+  }
+
+  const task = data.queue[nextIdx];
+  data.current = task;
+  data.queue.splice(nextIdx, 1);
+
+  save(data);
+  commit(`task: resume — ${task.description}`);
+
+  console.log(`\nResuming: ${task.description}`);
+  console.log(`Branch:  ${task.branch}`);
+  console.log(`Plan:    ${task.plan}`);
+  const next = nextStep(task);
+  if (next) console.log(`Next:    ${next} — ${STEP_DESC[next]}`);
 }
 
 function cmdNext() {
@@ -216,14 +435,21 @@ function cmdList() {
     console.log(`  Next:  ${next || 'merge'}`);
   }
   console.log(`Queued (${data.queue.length}):`);
-  data.queue.forEach(t => console.log(`  • [${t.id}] ${t.description}`));
+  data.queue.forEach(t => {
+    const ready = isTaskReady(t, data);
+    const status = ready ? '[ready]' : '[blocked]';
+    let prefix = '  • ';
+    if (t.parent_id) prefix = '  ↳ ';
+    console.log(`${prefix}${status} ${t.description}`);
+  });
   console.log(`Completed (${data.completed.length}):`);
   data.completed.slice(-5).forEach(t => console.log(`  ✓ ${t.description}`));
 }
 
 const COMMANDS = {
   status: cmdStatus, start: cmdStart, done: cmdDone,
-  finish: cmdFinish, queue: cmdQueue, next: cmdNext, list: cmdList,
+  finish: cmdFinish, queue: cmdQueue, resume: cmdResume,
+  'extract-plan': cmdExtractPlan, next: cmdNext, list: cmdList,
 };
 
 const [,, cmd = 'status', ...args] = process.argv;
