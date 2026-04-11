@@ -1,0 +1,15 @@
+graphify-out/
+.code-review-graph/
+__pycache__/
+*.pyc
+.env
+.venv/
+node_modules/
+*.egg-info/
+dist/
+.DS_Store
+
+# Service-level build artifacts
+services/*/dist/
+services/*/.venv/
+services/*/node_modules/

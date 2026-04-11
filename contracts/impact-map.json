@@ -1,0 +1,21 @@
+{
+  "_readme": "Maps contract artifacts to consuming services. Covers Kafka topics, MCP tools, A2A cards, proto files — string-reference deps not detectable by AST tools. Update when contracts/ changes.",
+
+  "contracts/kafka/schemas/raw-jobs.json":           ["jobflow-crawler", "jobflow-classifier"],
+  "contracts/kafka/schemas/classified-jobs.json":    ["jobflow-classifier", "jobflow-matcher"],
+  "contracts/kafka/schemas/match-results.json":      ["jobflow-matcher", "jobflow-application"],
+  "contracts/kafka/schemas/application-events.json": ["jobflow-application", "jobflow-notifier"],
+
+  "contracts/proto/resume.proto":                    ["resume-service", "jobflow-api"],
+
+  "contracts/mcp/tools/generate.json":               ["jobflow-classifier", "jobflow-application", "jobflow-research-agent", "jobflow-gap-agent", "jobflow-critic-agent", "jobflow-prep-agent"],
+  "contracts/mcp/tools/fetch-job-details.json":      ["jobflow-application"],
+  "contracts/mcp/tools/fetch-user-resume.json":      ["jobflow-application"],
+  "contracts/mcp/tools/web-search.json":             ["jobflow-research-agent"],
+  "contracts/mcp/tools/email-sender.json":           ["jobflow-notifier"],
+
+  "contracts/a2a/cards/research-agent.json":         ["jobflow-application", "jobflow-research-agent"],
+  "contracts/a2a/cards/gap-agent.json":              ["jobflow-application", "jobflow-gap-agent"],
+  "contracts/a2a/cards/critic-agent.json":           ["jobflow-application", "jobflow-critic-agent"],
+  "contracts/a2a/cards/prep-agent.json":             ["jobflow-application", "jobflow-prep-agent"]
+}
