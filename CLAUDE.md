@@ -11,6 +11,14 @@ training/      Gemma 3n fine-tuning pipeline
 docs/plans/    L1 system plan + L2 per-service designs
 ```
 
+## Session start
+Run this before anything else:
+```bash
+python scripts/task.py status
+```
+If a task is in progress, resume from `last_completed` — do not redo completed steps.
+To hand off to local LLM: `python scripts/task.py next`
+
 ## Key rules
 - Domain layer: zero framework imports
 - Depend on interfaces (Protocol), not implementations
