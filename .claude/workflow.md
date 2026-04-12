@@ -41,7 +41,7 @@ If nothing is in progress: pick the next item from the queue or start a new task
   compliance agent   → does diff match the plan exactly?
   python scripts/task.py done compliance
 
-  developer agent    → code quality, SOLID, layer rules
+  developer agent    → code quality, SOLID, decoupling and composition rules
   python scripts/task.py done developer
 
   qa agent           → test coverage, edge cases, test correctness

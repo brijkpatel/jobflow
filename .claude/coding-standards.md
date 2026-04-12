@@ -3,39 +3,36 @@
 ## Decoupling (pragmatic — scale to complexity)
 
 ```
-Simple feature, no extension expected   → plain class
-Needs to be testable / mockable         → class + interface (Protocol)
-Tech that might be swapped later        → interface + adapter
-Core domain boundary (LLM, DB, queue)  → port + adapter (hexagonal)
+Simple feature, no extension expected   → plain function or class
+Multi-step workflow / branching logic   → service or orchestrator
+Needs to be testable / mockable         → Protocol + concrete implementation
+Tech that might be swapped later        → interface + provider/client implementation
+Complex construction / wiring           → factory or composition helper
 ```
 
 **One non-negotiable rule regardless of pattern:**
-`domain/` and `application/` layers never import from `infrastructure/`, ADK, FastAPI, Kafka, SQLAlchemy, or any framework. Swapping a tech = change one adapter, nothing else.
+Business-logic modules (`service.py`, `orchestrator.py`, pure helpers, decision code) never import FastAPI, ADK, Kafka, SQLAlchemy, or other framework-heavy concrete implementations directly. Swapping a tech should mostly mean changing wiring plus the concrete class that talks to that tech, not rewriting the workflow logic.
 
-## Layer structure (Python services)
+## Suggested service structure (adapt to complexity)
 
 ```
 src/
-  domain/          # pure Python — no framework imports
-    models.py      # entities, value objects (dataclasses)
-    interfaces.py  # Protocols — IJobRepo, ILLMService, IEmailSender
-    exceptions.py  # domain exceptions
-  application/     # use cases — orchestrates domain, no infra details
-    use_cases.py
-  infrastructure/  # implements domain interfaces
-    postgres/
-    kafka/
-    qdrant/
-    llm/
-    adk/           # ADK Agent instantiation lives here
-  api/             # FastAPI routes — thin adapters only
+  models.py        # entities, value objects, shared types
+  interfaces.py    # Protocols / abstract contracts
+  services/        # business logic units
+  orchestrators/   # multi-step flows, agent coordination, pipelines
+  providers/       # concrete integrations: DB, queue, LLM, storage, ADK
+  factories.py     # optional wiring helpers for complex setup
+  api/             # FastAPI routes / HTTP schemas
     routes/
     schemas.py
   main.py          # composition root — wires interfaces to implementations
 tests/
   unit/            # mock at interface boundary
-  integration/     # real infra via Docker
+  integration/     # real providers via Docker / test containers
 ```
+
+Not every service needs every folder. Prefer the smallest structure that keeps business logic separate from transport and infrastructure concerns.
 
 ## Interfaces
 
@@ -50,6 +47,15 @@ class IJobRepository(Protocol):
     async def save(self, job: Job) -> None: ...
 ```
 
+## Boundary discipline
+
+- No framework models in service/orchestrator signatures
+- Map HTTP payloads, Kafka events, ORM rows, and ADK/tool payloads at the boundary before business logic sees them
+- No direct env/config reads outside `main.py`, factories, or explicit wiring modules
+- Time, UUID generation, retry policy, and similar workflow-affecting concerns should be injectable when they influence decisions
+- External side effects (LLM, DB, queue, email, storage, search, auth) stay behind Protocols or explicit interfaces
+- Keep transaction ownership explicit: define where write units start/end instead of letting persistence details leak through the call stack
+
 ## Rules
 
 - Max 200 lines per file — split if exceeded
@@ -59,7 +65,9 @@ class IJobRepository(Protocol):
 - No inline comments unless logic is non-obvious math or algorithm
 - No speculative abstractions — build for what the task requires
 - No backwards-compatibility shims — change the code directly
-- `main.py` is the only place that imports from both `domain/` and `infrastructure/`
+- `main.py` and explicit factory modules are where business logic is wired to concrete implementations
+- Keep FastAPI routes, ADK setup, DB clients, and Kafka clients out of business-logic modules
+- Reads should not mutate state; commands should not also behave like queries
 
 ## Go (notifier service)
 
