@@ -15,10 +15,10 @@ docs/plans/    L1 system plan + L2 per-service designs
 Run this before anything else:
 ```bash
 node scripts/task.js status
-# or via Claude Code skill: /task
+# or via Claude Code skill: /tasks
 ```
 If a task is in progress, resume from `last_completed` — do not redo completed steps.
-To hand off to local LLM: `node scripts/task.js next` or `/task next`
+To hand off to local LLM: `node scripts/task.js next` or `/tasks next`
 
 ## Key rules
 - Domain layer: zero framework imports

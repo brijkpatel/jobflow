@@ -1,5 +1,5 @@
 ---
-name: task
+name: tasks
 description: Manage the task queue in tasks/queue.json. Auto-extract subtasks from plans, pick ready tasks, handle dependencies. Invoke at session start and after each workflow step.
 ---
 
@@ -18,8 +18,8 @@ Step descriptions:
 - `developer`     — Developer agent passed (code quality + SOLID)
 - `qa`            — QA agent passed (test coverage + correctness)
 - `specialist`    — Role-specific agent passed (if declared in task plan)
-- `user_review`   — User reviewed and approved
-- `merged`        — Squash merged to main, branch deleted
+- `user_review`   — User reviewed and approved (always a manual checkpoint)
+- `merged`        — Squash merged to main, branch deleted, main pushed
 
 ---
 
@@ -222,9 +222,37 @@ When no task is in progress:
 
 This lets the user just call `/task resume` without caring about the queue structure.
 
+## `/task merge`
+
+Squash-merge the current branch to main and clean up. Run this after user approves at `user_review`.
+
+```bash
+# 1. Capture task description for commit message
+TASK_DESC=$(node scripts/task.js current-desc)
+
+# 2. Squash merge to main
+git checkout main
+git merge --squash <current-branch>
+git commit -m "<imperative summary of task>"
+
+# 3. Push and delete branch
+git push origin main
+git push origin --delete <current-branch>
+git branch -d <current-branch>
+
+# 4. Mark merged in queue
+node scripts/task.js done merged
+```
+
+Rules:
+- Always squash merge — one commit per task on main (trunk-based)
+- Commit message: imperative verb + what changed (max 72 chars), no "merge:" prefix
+- Never push to main without all review agents having APPROVED
+- After merge, call `/tasks finish` to unblock dependent tasks
+
 ## `/task finish`
 
-Complete the current task and resolve blocked dependencies.
+Complete the current task and resolve blocked dependencies. Run after `/task merge`.
 
 1. Archive current → `completed[]`
 2. Scan queue: any task whose `depends_on` list is now fully satisfied gets `status = "ready"`
@@ -260,33 +288,36 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 ### For single-branch tasks
 
 ```bash
-/task start "add login endpoint"
+/tasks start "add login endpoint"
 # ... write plan ...
-/task done plan_written
+/tasks done plan_written
 # ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
 # ... implement (TDD) ...
-/task done implemented
+/tasks done implemented
 # ↑ auto-runs: regression → compliance → developer → qa → specialist (if any)
 # ... chain stops at user_review for your sign-off ...
-/task finish
+/tasks merge        # squash merge to main, delete branch, push
+/tasks finish       # archive task, unblock dependents
 ```
 
 ### For multi-branch tasks
 
 ```bash
-/task start "build auth service"
+/tasks start "build auth service"
 # ... write plan with ### Subtasks section ...
-/task done plan_written
+/tasks done plan_written
 # ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
-/task extract-plan              # auto-parses plan, creates subtasks with deps
-/task finish                    # mark plan task complete, promote next subtask
+/tasks extract-plan             # auto-parses plan, creates subtasks with deps
+/tasks merge                    # squash merge plan + scaffold to main, delete branch
+/tasks finish                   # archive plan task, unblock subtasks
 
-# Later, when ready to implement:
-/task resume                    # picks first ready subtask
+# Later, when ready to implement a subtask:
+/tasks resume                   # picks first ready subtask, creates branch
 # ... implement subtask ...
-/task done implemented          # auto-runs full review chain
-/task finish                    # auto-unblocks dependent subtasks
-/task resume                    # picks next ready subtask
+/tasks done implemented         # auto-runs full review chain
+/tasks merge                    # squash merge subtask to main
+/tasks finish                   # auto-unblocks dependent subtasks
+/tasks resume                   # picks next ready subtask
 # ... repeat ...
 ```
 
