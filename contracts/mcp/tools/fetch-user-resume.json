@@ -1,0 +1,38 @@
+{
+  "name": "fetch_user_resume",
+  "description": "Fetch the latest parsed resume for a tenant-scoped user.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "tenant_id",
+      "user_id"
+    ],
+    "properties": {
+      "tenant_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "user_id": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "resume_id",
+      "resume"
+    ],
+    "properties": {
+      "resume_id": {
+        "type": "string"
+      },
+      "resume": {
+        "type": "object"
+      }
+    }
+  }
+}

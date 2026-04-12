@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package jobflow.resume.v1;
+
+service ResumeService {
+  rpc ParseResume(ParseResumeRequest) returns (ParseResumeResponse);
+  rpc GetResume(GetResumeRequest) returns (GetResumeResponse);
+}
+
+message Experience {
+  string company = 1;
+  string title = 2;
+  string start_date = 3;
+  optional string end_date = 4;
+  optional string location = 5;
+  repeated string bullets = 6;
+}
+
+message Education {
+  string institution = 1;
+  string degree = 2;
+  optional string field = 3;
+  optional string graduation_date = 4;
+  optional double gpa = 5;
+}
+
+message Certification {
+  string name = 1;
+  optional string issuer = 2;
+  optional string date = 3;
+}
+
+message Project {
+  string name = 1;
+  optional string description = 2;
+  repeated string technologies = 3;
+}
+
+message ResumeChunk {
+  string section_type = 1;
+  string text = 2;
+  int32 chunk_index = 3;
+  repeated float embedding = 4;
+}
+
+message ResumeData {
+  optional string name = 1;
+  optional string email = 2;
+  optional string phone = 3;
+  optional string location = 4;
+  optional string linkedin_url = 5;
+  optional string github_url = 6;
+  optional string portfolio_url = 7;
+  optional string summary = 8;
+  repeated string skills = 9;
+  repeated Experience experience = 10;
+  repeated Education education = 11;
+  repeated Certification certifications = 12;
+  repeated string languages = 13;
+  repeated Project projects = 14;
+  optional double years_of_experience = 15;
+}
+
+message ParseResumeRequest {
+  bytes file_bytes = 1;
+  string filename = 2;
+  string tenant_id = 3;
+  string user_id = 4;
+}
+
+message ParseResumeResponse {
+  string resume_id = 1;
+  ResumeData resume = 2;
+}
+
+message GetResumeRequest {
+  string resume_id = 1;
+  string tenant_id = 2;
+}
+
+message GetResumeResponse {
+  ResumeData resume = 1;
+}

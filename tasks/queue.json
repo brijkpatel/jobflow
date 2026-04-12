@@ -3,7 +3,7 @@
     "id": "20260412101324319",
     "description": "resume-service: convert standalone parser to microservice",
     "branch": "task/resume-service/microservice-conversion",
-    "plan": "docs/plans/test-plan.md",
+    "plan": "services/resume-service/docs/plans/microservice-conversion.md",
     "steps": {
       "plan_written": true,
       "plan_approved": true,
