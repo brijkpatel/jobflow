@@ -92,14 +92,22 @@ Run this after `/forge start` and before any code changes.
    # ↑ updates current.plan and commits queue.json automatically
    ```
 
-7. **Show the plan path** and prompt the user to review it, then run `/forge done plan_written`
+7. **Auto-run extract-plan** — immediately after saving and setting the plan path:
+   ```bash
+   node scripts/task.js extract-plan
+   # Creates subtasks (### Subtasks) or planning tasks (### Sub-plans) in the queue automatically
+   ```
+   No manual step needed — forge runs this automatically.
+
+8. **Show the plan path** and prompt the user to review it, then run `/forge done plan_written`
 
 ### What happens next
 
 After the user reviews the plan and runs `/forge done plan_written`:
 - Forge auto-runs the plan review chain (compliance + detected specialists in parallel)
 - All must APPROVE before `plan_approved` is marked
-- Then run `/forge extract-plan` if the plan has a `### Subtasks` section
+- Subtasks/sub-plans are already queued (extract-plan ran in step 7)
+- For L2 plans with `### Sub-plans`: the queue now contains planning tasks; resume each with `/forge resume` and `/forge plan`
 
 ## `/forge done <step>`
 

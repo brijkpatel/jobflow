@@ -139,12 +139,18 @@ function cmdStatus() {
   }
   const done = completedSteps(task);
   const next = nextStep(task);
-  console.log(`Task:   ${task.description}`);
+  const typeLabel = task.plan_type === 'l3-planning' ? ' [planning task]' : task.plan_type === 'l2' ? ' [L2 design task]' : '';
+  console.log(`Task:   ${task.description}${typeLabel}`);
   console.log(`Branch: ${task.branch}`);
   console.log(`Plan:   ${task.plan}`);
   console.log(`Done:   ${done.join(', ') || 'none'}`);
-  if (next) console.log(`Next:   ${next} — ${STEP_DESC[next]}`);
-  else      console.log(`Next:   merge, then run: task finish`);
+  if (next === 'plan_written' && task.plan_type === 'l3-planning') {
+    console.log(`Next:   /forge plan  ← write L3 implementation plan for this sub-task`);
+  } else if (next) {
+    console.log(`Next:   ${next} — ${STEP_DESC[next]}`);
+  } else {
+    console.log(`Next:   merge, then run: task finish`);
+  }
   if (task.subtask_ids?.length) {
     const descs = task.subtask_ids.map(id => {
       const st = getTaskById(id, data);
@@ -253,6 +259,30 @@ function cmdQueue([...rest]) {
   console.log(`Queued: ${desc}  (depth: ${data.queue.length})`);
 }
 
+function parseSection(lines, headingPattern) {
+  let startIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].match(headingPattern)) { startIdx = i; break; }
+  }
+  if (startIdx === -1) return [];
+  const items = [];
+  const nameToId = {};
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (line.match(/^#{1,2}\s/)) break;
+    const match = line.match(/^\d+\.\s+(.+?)(?:\s*\(depends on:\s*(.+?)\))?$/);
+    if (!match) continue;
+    const desc = match[1].trim();
+    const depStr = match[2]?.trim() || '';
+    const deps = depStr ? depStr.split(',').map(d => d.trim()) : [];
+    const tid = taskId();
+    items.push({ desc, deps, tid });
+    nameToId[desc] = tid;
+  }
+  return { items, nameToId };
+}
+
 function cmdExtractPlan([planFile]) {
   const data = load();
   if (!data.current) {
@@ -272,80 +302,69 @@ function cmdExtractPlan([planFile]) {
   const content = fs.readFileSync(fullPath, 'utf8');
   const lines = content.split('\n');
 
-  let subtasksStartIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].match(/^###\s+Subtasks?/i)) {
-      subtasksStartIdx = i;
-      break;
+  // Parse ### Subtasks (implementation tasks) and ### Sub-plans (L2→L3 planning tasks)
+  const subtaskResult   = parseSection(lines, /^###\s+Subtasks?/i);
+  const subplanResult   = parseSection(lines, /^###\s+Sub-plans?/i);
+
+  const hasSubtasks = subtaskResult.items?.length > 0;
+  const hasSubplans = subplanResult.items?.length > 0;
+
+  if (!hasSubtasks && !hasSubplans) {
+    console.log('No ### Subtasks or ### Sub-plans section found in plan.');
+    return;
+  }
+
+  // Merge nameToId maps so cross-section deps resolve
+  const nameToId = { ...subtaskResult.nameToId, ...subplanResult.nameToId };
+
+  const createdTasks = [];
+
+  function createQueueEntries(items, planType) {
+    for (const st of items) {
+      const dependsOn = st.deps
+        .map(depName => nameToId[depName])
+        .filter(id => id);
+
+      const task = {
+        id: st.tid,
+        description: st.desc,
+        branch: data.current.branch,
+        plan: data.current.plan,
+        plan_type: planType,
+        steps: Object.fromEntries(STEPS.map(s => [s, false])),
+        last_completed: null,
+        started: now(),
+        updated: now(),
+        parent_id: data.current.id,
+        subtask_ids: [],
+        depends_on: dependsOn,
+        status: dependsOn.length === 0 ? 'ready' : 'blocked',
+      };
+
+      data.queue.push(task);
+      createdTasks.push({ desc: st.desc, planType, status: task.status, deps: st.deps });
     }
   }
 
-  if (subtasksStartIdx === -1) {
-    console.log('No ### Subtasks section found in plan.');
-    return;
-  }
+  if (hasSubtasks) createQueueEntries(subtaskResult.items, 'l3');
+  if (hasSubplans) createQueueEntries(subplanResult.items, 'l3-planning');
 
-  const subtasks = [];
-  const nameToId = {};
-
-  for (let i = subtasksStartIdx + 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    if (line.match(/^#{1,2}\s/)) break;
-
-    const match = line.match(/^\d+\.\s+(.+?)(?:\s*\(depends on:\s*(.+?)\))?$/);
-    if (!match) continue;
-
-    const desc = match[1].trim();
-    const depStr = match[2]?.trim() || '';
-    const deps = depStr ? depStr.split(',').map(d => d.trim()) : [];
-
-    const tid = taskId();
-    subtasks.push({ desc, deps, tid });
-    nameToId[desc] = tid;
-  }
-
-  if (subtasks.length === 0) {
-    console.log('No subtasks found in ### Subtasks section.');
-    return;
-  }
-
-  const createdTasks = [];
-  for (const st of subtasks) {
-    const dependsOn = st.deps
-      .map(depName => nameToId[depName])
-      .filter(id => id);
-
-    const task = {
-      id: st.tid,
-      description: st.desc,
-      branch: data.current.branch,
-      plan: data.current.plan,
-      steps: Object.fromEntries(STEPS.map(s => [s, false])),
-      last_completed: null,
-      started: now(),
-      updated: now(),
-      parent_id: data.current.id,
-      subtask_ids: [],
-      depends_on: dependsOn,
-      status: dependsOn.length === 0 ? 'ready' : 'blocked',
-    };
-
-    data.queue.push(task);
-    createdTasks.push({ desc: st.desc, status: task.status, deps: st.deps });
-  }
-
+  const allItems = [
+    ...(hasSubtasks ? subtaskResult.items : []),
+    ...(hasSubplans ? subplanResult.items : []),
+  ];
   if (!data.current.subtask_ids) data.current.subtask_ids = [];
-  data.current.subtask_ids.push(...subtasks.map(s => s.tid));
+  data.current.subtask_ids.push(...allItems.map(s => s.tid));
   data.current.updated = now();
 
   save(data);
-  commit(`task: extract plan — ${subtasks.length} subtasks`);
+  commit(`task: extract plan — ${createdTasks.length} tasks`);
 
-  console.log(`Extracted ${subtasks.length} subtasks:`);
+  console.log(`Extracted ${createdTasks.length} tasks:`);
   createdTasks.forEach(t => {
+    const typeLabel = t.planType === 'l3-planning' ? '[plan]' : '[impl]';
     const status = t.status === 'ready' ? '[ready]' : `[blocked: ${t.deps.join(', ')}]`;
-    console.log(`  ${status} ${t.desc}`);
+    console.log(`  ${typeLabel} ${status} ${t.desc}`);
   });
 }
 
@@ -394,7 +413,11 @@ function cmdResume() {
   console.log(`Branch:  ${task.branch}`);
   console.log(`Plan:    ${task.plan}`);
   const next = nextStep(task);
-  if (next) console.log(`Next:    ${next} — ${STEP_DESC[next]}`);
+  if (next === 'plan_written' && task.plan_type === 'l3-planning') {
+    console.log(`Next:    /forge plan  ← this is a planning task — write the L3 implementation plan`);
+  } else if (next) {
+    console.log(`Next:    ${next} — ${STEP_DESC[next]}`);
+  }
 }
 
 function cmdNext() {

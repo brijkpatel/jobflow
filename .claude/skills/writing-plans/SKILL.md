@@ -1,17 +1,39 @@
 ---
 name: writing-plans
-description: Write an L3 task plan — the source of truth for an implementation task. Invoked by /forge plan before any code is written.
+description: Write a task plan — L2 design doc (complex, multi-service) or L3 implementation plan (single-service, <8 subtasks). Invoked by /forge plan before any code is written.
 ---
 
-# Writing L3 Task Plans
+# Writing Task Plans (L2 / L3)
 
-An L3 plan is the **contract between planning and implementation**. Every reviewer agent (compliance, developer, qa, specialists) checks the diff against this plan. Write it once, precisely, before touching any code.
+A plan is the **contract between planning and implementation**. Every reviewer agent (compliance, developer, qa, specialists) checks the diff against this plan. Write it once, precisely, before touching any code.
 
 ---
 
 ## When to invoke this skill
 
 After `/forge start <description>` and before writing any code. The forge cycle calls this skill as part of `/forge plan`.
+
+---
+
+## Step 0 — Complexity assessment (do this before anything else)
+
+Classify the task as **L2** (complex, needs design decomposition first) or **L3** (single-scope, can implement directly).
+
+**Score one point per signal:**
+
+| Signal | Points |
+|---|---|
+| Spans multiple services | 1 |
+| Requires contract changes AND service implementation | 1 |
+| Description contains "build", "implement entire/full/complete", "create service", "end-to-end", "full pipeline" | 1 |
+| More than one specialist agent needed (architect + any other) | 1 |
+| Estimated subtasks > 7 | 1 |
+
+**Decision:**
+- Score ≥ 2 → **L2 plan** (write a design doc; produce `### Sub-plans` to break into L3 tasks)
+- Score < 2 → **L3 plan** (write an implementation plan; produce `### Subtasks`)
+
+> Output: "Score: X/5 → writing L2 plan" or "Score: X/5 → writing L3 plan"
 
 ---
 
@@ -164,10 +186,87 @@ Leave it out for single-unit tasks.)
 
 Rules for subtasks:
 - Each subtask must be independently testable and committable
-- Dependency names must match exactly (used by `/forge extract-plan`)
+- Dependency names must match exactly (used by `extract-plan`)
 - Order them by natural implementation sequence
 - Aim for subtasks of roughly equal size
 - Never create a subtask just for "tests" — tests live inside the subtask they cover
+```
+
+---
+
+## L2 Plan template
+
+Use this when Step 0 scores ≥ 2. The L2 plan is a **design doc** that decomposes into L3 planning tasks — not implementation tasks.
+
+### File location
+
+```
+docs/plans/<YYYY-MM-DD>-<slug>-design.md          # cross-cutting design docs
+services/<service>/docs/plans/<YYYY-MM-DD>-design.md  # service-level design
+```
+
+### Required sections
+
+```markdown
+---
+task: <short imperative name>
+type: l2-design
+reviewers: architect, developer, compliance[, ml-developer][, a2a-specialist][, api-security]
+branch: task/<service-or-feature>/<description>
+---
+
+## Problem
+
+What is the scope of this feature/system? One paragraph.
+
+## Architecture overview
+
+High-level description of components, data flows, and integration points.
+Include a diagram if helpful (Mermaid or ASCII).
+
+## Components
+
+List every component/service involved:
+
+| Component | Responsibility | Status |
+|---|---|---|
+| `resume-service` | Parse resumes, expose gRPC API | new |
+| `job-matcher` | Match jobs to resumes via RAG | existing, modified |
+
+## Contracts to design
+
+List every contract artifact that must be designed before implementation begins:
+
+| Artifact | Type | Status |
+|---|---|---|
+| `resume.proto` | gRPC proto | new |
+| `raw-jobs` Kafka schema | Avro | new |
+
+## Open questions
+
+List any unresolved architectural decisions that must be answered before L3 planning:
+
+1. Should resume parsing be sync gRPC or async Kafka?
+2. Which vector DB — Qdrant or PGVector?
+
+## Out of scope
+
+What this design does NOT cover.
+
+### Sub-plans
+
+(Required for L2 plans — each entry becomes a planning task in the queue)
+
+1. Design: contract artifacts — proto + Kafka schema definitions
+2. Design: domain model — entities, value objects (depends on: Design: contract artifacts)
+3. Plan: resume-service implementation (depends on: Design: domain model)
+4. Plan: job-matcher RAG integration (depends on: Design: domain model)
+
+Rules for sub-plans:
+- Use `Design:` prefix for pure design/contract tasks; `Plan:` for L3 implementation plans
+- Each entry becomes a task with `plan_type: l3-planning`
+- Dependency names must match exactly
+- Sub-plans should fan out where possible (parallelize), only chain when truly sequential
 ```
 
 ---
@@ -200,13 +299,16 @@ Run this mental checklist before writing the file:
 ## Step 5 — After writing the plan
 
 ```bash
-# Update the plan path in queue.json if it was a placeholder
-# (forge does this automatically if you used /forge plan)
-
-# Then invoke forge to complete the step
-# Do NOT run this yet — wait for user to verify the plan
-echo "Plan written. Review it at <path>, then run: /forge done plan_written"
+# Update the plan path in queue.json (forge does this automatically via /forge plan)
+node scripts/task.js set-plan <path-to-plan>
 ```
+
+`/forge plan` **automatically runs `node scripts/task.js extract-plan` after you save the plan file**.  
+You do not need to run extract-plan manually.
+
+- For L3 plans: `### Subtasks` entries are created as implementation tasks in the queue
+- For L2 plans: `### Sub-plans` entries are created as planning tasks (`plan_type: l3-planning`)
+  - When the next task is a planning task, `task resume` will hint: "run /forge plan to write the L3 plan"
 
 The plan is reviewed by `compliance` + detected specialists as part of `/forge done plan_written`.
 Do not mark `plan_written` done until the file is saved and the user has had a chance to review it.
