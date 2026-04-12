@@ -43,11 +43,137 @@ If no current task and no ready tasks: shows blocked tasks + what they depend on
 
 ## `/task done <step>`
 
-Mark a step complete and show the next one.
+Mark a step complete, then automatically invoke the next agent (see **Agent auto-chain** below).
 
-1. Set `steps.<step> = true` and `last_completed = <step>`
-2. `git commit -m "task: step done — <step>"`
-3. Show next incomplete step
+1. Run `node scripts/task.js done <step>`
+2. Follow the auto-chain routing table — invoke the next agent, gather context first
+3. If agent returns APPROVED: run `node scripts/task.js done <next-step>` and continue chain
+4. If agent returns BLOCKED: stop, report issues to user, do NOT mark next step done
+5. Pause at `user_review` — always wait for explicit user confirmation before marking done
+
+## Specialist auto-detection
+
+Before running any review chain, detect which specialist agents are needed.
+Do this twice: once at **plan review** (from task description + plan content), once at **implementation review** (from changed file paths).
+Never require the user to declare specialists manually — infer from signals.
+
+### Detection signals
+
+| Specialist | Triggers on (description / plan keywords) | Triggers on (changed file paths) |
+|---|---|---|
+| `architect` | new service, service boundary, Kafka schema, proto change, contract, cross-service, migration, new topic, A2A card | `contracts/`, `*.proto`, `*schema*`, `*migration*`, `infrastructure/`, `services/*/contracts/` |
+| `ml-developer` | LLM, embedding, inference, fine-tuning, RAG, vector, Gemma, model, classifier, ranker, retrieval | `training/`, `*embed*`, `*infer*`, `*llm*`, `*model*`, `*rag*`, `*vector*`, `*classifier*` |
+| `a2a-specialist` | A2A, ADK, agent, MCP tool, orchestration, subagent, AgentCard, dispatch | `*agent*`, `*a2a*`, `*mcp*`, `*adk*`, `contracts/mcp-tools/`, `*orchestrat*` |
+| `api-security` | auth, JWT, token, OAuth, secret, credential, encryption, API key, public endpoint, permission | `*auth*`, `*security*`, `*token*`, `*oauth*`, `*credential*`, `src/api/`, `*middleware*` |
+
+### How to detect
+
+**At plan review** (`plan_written` just marked done):
+1. Read task description from `tasks/queue.json current.description`
+2. Read plan file contents
+3. Match keywords from the table above against both
+4. Collect all matched specialists
+
+**At implementation review** (`implemented` just marked done):
+1. Run `git diff main...HEAD --name-only` to get changed file paths
+2. Match path patterns from the table above
+3. Also re-check task description for any specialist not already detected from files
+4. Collect all matched specialists
+
+If no specialists are detected, proceed with the standard chain only (regression → compliance → developer → qa).
+
+---
+
+## Agent auto-chain
+
+After each `done` call, invoke the review agents in order before marking the next step done.
+Gather context before invoking — agents need the diff and plan, not just the code.
+
+### Standard chain (always runs)
+
+| Step just marked done | Invoke agent | Context to pass | Approves → auto-mark |
+|-----------------------|-------------|-----------------|----------------------|
+| `plan_written` | `compliance` + detected specialists | plan file contents | `plan_approved` |
+| `implemented` | `regression` | `git diff main...HEAD` + `get_impact_radius` | `regression` |
+| `regression` | `compliance` | plan file contents + `git diff main...HEAD` | `compliance` |
+| `compliance` | `developer` | `git diff main...HEAD` | `developer` |
+| `developer` | `qa` | `git diff main...HEAD` | `qa` |
+| `qa` | detected specialists (from implementation signals) | `git diff main...HEAD` | `specialist` |
+| `specialist` | — | — | pause for user |
+| `user_review` | — | — | `merged` (after squash merge) |
+
+**Plan review order** — after `plan_written`, run in parallel if possible:
+1. `compliance` — is the plan achievable? any gaps?
+2. Detected specialists — is the design correct for this domain?
+
+All must APPROVE before marking `plan_approved`. If any BLOCK, stop and report.
+
+**Implementation review order** — after `qa`, run detected specialists sequentially:
+- `architect` first (if detected) — service boundary and contract correctness
+- `ml-developer` (if detected) — inference and embedding patterns
+- `a2a-specialist` (if detected) — agent and MCP tool design
+- `api-security` (if detected) — auth and credential handling
+
+Each must APPROVE before the next runs. First BLOCK stops the chain.
+
+### Context-gathering commands
+
+Run these before invoking agents — do not pass raw file lists, pass actual content:
+
+```bash
+# Full diff from branch start
+git diff main...HEAD
+
+# Changed file paths only (for specialist detection)
+git diff main...HEAD --name-only
+
+# Plan file — path is in tasks/queue.json current.plan
+# Read it with the Read tool
+
+# Impact radius (code-review-graph MCP tool)
+# Call get_impact_radius with the list of changed file paths
+```
+
+### Chain behavior
+
+- **APPROVED** — mark the step done, continue to next agent automatically
+- **BLOCKED** — stop the chain immediately, show all issues to the user, do not mark done
+- **User checkpoint** — always stop at `user_review`; show a verdict summary from every agent before asking
+
+### Example: ML task — full chain after `/task done implemented`
+
+```
+detect specialists from git diff --name-only:
+  training/fine_tune.py, services/matcher/src/embedder.py → ml-developer
+
+1. gather: git diff main...HEAD + get_impact_radius
+2. invoke regression → APPROVED → mark regression done
+3. gather: plan + git diff
+4. invoke compliance → APPROVED → mark compliance done
+5. gather: git diff
+6. invoke developer → APPROVED → mark developer done
+7. gather: git diff
+8. invoke qa → APPROVED → mark qa done
+9. gather: git diff
+10. invoke ml-developer → BLOCKED (batched inference missing, calling model per-item in loop)
+11. STOP — report to user
+```
+
+### Example: API + A2A task — plan review after `/task done plan_written`
+
+```
+detect specialists from task description "add OAuth login via A2A dispatch":
+  "OAuth", "auth" → api-security
+  "A2A", "dispatch" → a2a-specialist
+
+1. gather: plan file contents
+2. invoke compliance → APPROVED
+3. invoke api-security → APPROVED
+4. invoke a2a-specialist → BLOCKED (AgentCard missing required auth field)
+5. STOP — do not mark plan_approved, report to user
+```
+
+---
 
 ## `/task extract-plan [plan-file]`
 
@@ -135,9 +261,13 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 
 ```bash
 /task start "add login endpoint"
-# ... do plan_written step ...
+# ... write plan ...
 /task done plan_written
-# ... continue through steps ...
+# ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
+# ... implement (TDD) ...
+/task done implemented
+# ↑ auto-runs: regression → compliance → developer → qa → specialist (if any)
+# ... chain stops at user_review for your sign-off ...
 /task finish
 ```
 
@@ -147,12 +277,14 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 /task start "build auth service"
 # ... write plan with ### Subtasks section ...
 /task done plan_written
+# ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
 /task extract-plan              # auto-parses plan, creates subtasks with deps
-/task finish                    # mark plan-writing complete, move to next step
+/task finish                    # mark plan task complete, promote next subtask
 
 # Later, when ready to implement:
 /task resume                    # picks first ready subtask
-# ... implement subtask 1 ...
+# ... implement subtask ...
+/task done implemented          # auto-runs full review chain
 /task finish                    # auto-unblocks dependent subtasks
 /task resume                    # picks next ready subtask
 # ... repeat ...
@@ -170,3 +302,4 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 - After `plan_written` step: run `/task extract-plan` to register subtasks from the plan
 - When no current task: run `/task resume` to start the next ready task automatically
 - Do not call `/task queue` for subtasks — use the plan format instead
+- If any agent in the chain is BLOCKED: stop immediately, do not run remaining agents, report all issues together
