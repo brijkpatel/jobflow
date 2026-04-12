@@ -23,7 +23,7 @@ Step descriptions:
 
 ---
 
-## `/task` or `/task status`
+## `/forge` or `/forge status`
 
 Read `tasks/queue.json`. Display:
 - Current task: description, branch, plan file, steps, and subtasks
@@ -32,7 +32,7 @@ Read `tasks/queue.json`. Display:
 
 If no current task and no ready tasks: shows blocked tasks + what they depend on.
 
-## `/task start <description>`
+## `/forge start <description>`
 
 1. Read current git branch
 2. Create initial task with unique id (YYYYMMDDHHMMSSsss)
@@ -41,7 +41,7 @@ If no current task and no ready tasks: shows blocked tasks + what they depend on
 5. `git commit -m "task: start — <description>"`
 6. Show next step: `plan_written`
 
-## `/task done <step>`
+## `/forge done <step>`
 
 Mark a step complete, then automatically invoke the next agent (see **Agent auto-chain** below).
 
@@ -140,7 +140,7 @@ git diff main...HEAD --name-only
 - **BLOCKED** — stop the chain immediately, show all issues to the user, do not mark done
 - **User checkpoint** — always stop at `user_review`; show a verdict summary from every agent before asking
 
-### Example: ML task — full chain after `/task done implemented`
+### Example: ML task — full chain after `/forge done implemented`
 
 ```
 detect specialists from git diff --name-only:
@@ -159,7 +159,7 @@ detect specialists from git diff --name-only:
 11. STOP — report to user
 ```
 
-### Example: API + A2A task — plan review after `/task done plan_written`
+### Example: API + A2A task — plan review after `/forge done plan_written`
 
 ```
 detect specialists from task description "add OAuth login via A2A dispatch":
@@ -175,7 +175,7 @@ detect specialists from task description "add OAuth login via A2A dispatch":
 
 ---
 
-## `/task extract-plan [plan-file]`
+## `/forge extract-plan [plan-file]`
 
 Auto-parses the plan file for subtasks and creates dependency-linked queue entries.
 
@@ -209,7 +209,7 @@ Rules:
 5. `git commit -m "task: extract plan — N subtasks"`
 6. Print summary: list all subtasks with their dependency status
 
-## `/task resume`
+## `/forge resume`
 
 Auto-pick the next ready task and make it current.
 
@@ -220,9 +220,9 @@ When no task is in progress:
 4. If all tasks blocked: show what they're waiting on
 5. If queue empty: say "Queue is empty"
 
-This lets the user just call `/task resume` without caring about the queue structure.
+This lets the user just call `/forge resume` without caring about the queue structure.
 
-## `/task merge`
+## `/forge merge`
 
 Squash-merge the current branch to main and clean up. Run this after user approves at `user_review`.
 
@@ -248,9 +248,9 @@ Rules:
 - Always squash merge — one commit per task on main (trunk-based)
 - Commit message: imperative verb + what changed (max 72 chars), no "merge:" prefix
 - Never push to main without all review agents having APPROVED
-- After merge, call `/tasks finish` to unblock dependent tasks
+- After merge, call `/forge finish` to unblock dependent tasks
 
-## `/task finish`
+## `/forge finish`
 
 Complete the current task and resolve blocked dependencies. Run after `/task merge`.
 
@@ -259,7 +259,7 @@ Complete the current task and resolve blocked dependencies. Run after `/task mer
 3. `git commit -m "task: finish — <desc>"`
 4. Print: completed count, newly unblocked tasks, next ready task (if any)
 
-## `/task queue <description>`
+## `/forge queue <description>`
 
 Manually add a standalone task to the queue (no subtask extraction).
 
@@ -269,13 +269,13 @@ Manually add a standalone task to the queue (no subtask extraction).
 
 Prefer `extract-plan` for multi-branch work. Use `queue` only for independent tasks.
 
-## `/task next`
+## `/forge next`
 
 Print handoff prompt for local LLM — copy-paste ready.
 
 Shows: task name, branch, plan file, completed steps, next step, instructions.
 
-## `/task list`
+## `/forge list`
 
 Show full queue state: current task, queued tasks (with ready/blocked status), last 5 completed.
 
@@ -330,7 +330,7 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 - Never mark a step done without evidence it was actually completed
 - `specialist` step: mark done only if a specialist agent was declared in the task plan and has approved; skip if not applicable
 - Write subtasks in the plan file: `### Subtasks` section with optional `(depends on: ...)`
-- After `plan_written` step: run `/task extract-plan` to register subtasks from the plan
+- After `plan_written` step: run `/forge extract-plan` to register subtasks from the plan
 - When no current task: run `/task resume` to start the next ready task automatically
 - Do not call `/task queue` for subtasks — use the plan format instead
 - If any agent in the chain is BLOCKED: stop immediately, do not run remaining agents, report all issues together
