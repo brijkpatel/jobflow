@@ -135,11 +135,22 @@ Repos use prefix `jobflow-*` — confirm before creating.
 - **Scales:** KEDA on A2A task queue (min 0, max 5 — called twice per application)
 
 ### 11. `jobflow-prep-agent` — Python + Google ADK
-**Responsibility:** Async post-submission interview preparation.
-- Triggered via A2A after successful submission (non-blocking)
+**Responsibility:** Two related post-application agents in one service.
+
+**InterviewPrepAgent** (per-application, async, non-blocking):
+- Triggered via A2A after successful submission
 - Generates likely interview questions from job description + user background
 - Generates suggested answers grounded in user resume
-- Stores PDF → OCI Object Storage → publishes to `application-events` Kafka
+- Stores PDF → OCI Object Storage → publishes to `application-events{type=prep_ready}` Kafka
+
+**ProfileOptimizerAgent** (weekly batch, CronJob):
+- Analyses application outcomes across all users (submitted vs no-response vs rejected)
+- Finds patterns in successful applications (which skills, roles, companies responded)
+- Suggests resume improvements, preference tuning, skill gaps to address
+- Writes optimisation report to Postgres `optimisation_reports` table
+- Optionally auto-adjusts `user_preferences.min_match_score`
+- Pattern: feedback loop / learning agent
+
 - **Scales:** KEDA on A2A task queue (min 0, max 2)
 
 ### 12. `jobflow-llm` — Python + Google LiteRT-LM
@@ -877,54 +888,53 @@ On merge to main:
 
 ---
 
-## Contracts Repo — `jobflow-contracts`
-- `proto/` — gRPC: resume-service ↔ jobflow-api
-- `schemas/migrations/` — numbered SQL migrations (additive only)
-- `openapi/` — REST API spec for jobflow-api
-- `kafka/schemas/` — JSON schemas for all Kafka topics + DLQs
-- `mcp/` — MCP tool definitions (tool names, input/output schemas)
-- `a2a/` — Agent Card definitions for orchestrator + application agents
+## Contracts — `contracts/` (monorepo)
+
+> **Monorepo decision:** All services live in this single repo under `services/`. Contracts are in `contracts/` at the repo root — not a separate repo. This simplifies local development (one clone, one dev environment) and avoids cross-repo version coordination while still enforcing the same contract discipline.
+
+- `contracts/proto/` — gRPC: resume-service ↔ jobflow-api
+- `contracts/migrations/` — numbered SQL migrations (additive only)
+- `contracts/kafka/schemas/` — JSON schemas for all Kafka topics + DLQs
+- `contracts/mcp/` — MCP tool definitions (tool names, input/output schemas)
+- `contracts/a2a/` — Agent Card definitions for all ADK agents
+- `contracts/impact-map.json` — cross-service dependency map, updated on every contract change
 
 ---
 
-## Repos to Create
-
-| Repo | Language | Purpose |
-|------|----------|---------|
-| `jobflow-contracts` | SQL/Proto/YAML/JSON | Shared schemas, migrations, API specs |
-| `jobflow-infra` | Terraform + Helm | OKE cluster + shared services only (Redpanda, Postgres, Redis, Qdrant) |
-| `jobflow-training` | Python (Unsloth/TRL) | Data generation + fine-tuning pipeline |
-| `resume-service` | Python + FastAPI | Resume parsing microservice (wraps resume-parser) |
-| `jobflow-web` | TypeScript + Next.js | User dashboard SPA |
-| `jobflow-api` | Python + FastAPI | Public REST API |
-| `jobflow-crawler` | Python | Job board scraper — I/O-bound, CronJob, publishes to Kafka |
-| `jobflow-classifier` | Python + Google ADK | Job classification + embedding — ADK agent, MCP to jobflow-llm, KEDA-scaled |
-| `jobflow-matcher` | Python + FastAPI | Resume-job vector matching |
-| `jobflow-application` | Python + Google ADK | Kafka consumer + stateful orchestrator agent — runs Phase 1 (parallel) + Phase 2 (Reflexion) + HITL |
-| `jobflow-research-agent` | Python + Google ADK | Company intelligence A2A agent — web_search, scrape_url, fetch_news tools |
-| `jobflow-gap-agent` | Python + Google ADK | Skill gap analysis A2A agent — produces apply_recommendation (yes/no/maybe) |
-| `jobflow-critic-agent` | Python + Google ADK | Content quality gate A2A agent — scores resume/cover letter 0-10, drives Reflexion loop |
-| `jobflow-prep-agent` | Python + Google ADK | InterviewPrepAgent — async interview Q&A PDF after each submission |
-| `jobflow-llm` | Python + LiteRT-LM | Fine-tuned model inference — MCP endpoint only (all callers are ADK agents) |
-| `jobflow-notifier` | Go | Email notification service — all event types including HITL, skipped, prep_ready |
-
-**17 repos total** (+ existing `resume-parser`). Each service repo owns its Dockerfile, CI/CD pipeline, and Helm chart. `jobflow-infra` owns only Terraform + shared platform services.
-
-### CI/CD Architecture (hybrid — not monolithic infra)
+## Monorepo Structure
 
 ```
-jobflow-infra/                    jobflow-matcher/ (example service)
-  terraform/                        src/
-    oke/        ← cluster           Dockerfile         ← owns its build
-    network/    ← VPC               charts/
-    vault/      ← secrets             Chart.yaml       ← owns its Helm chart
-    storage/    ← OCI buckets         values.yaml
-  helm/                             .github/workflows/
-    redpanda/   ← shared Kafka        ci.yml           ← lint, test, build, push
-    postgres/   ← shared DB           cd.yml           ← helm upgrade on merge
-    redis/      ← shared cache
-    qdrant/     ← shared vector
+jobflow/
+  contracts/         ← shared schemas (proto, migrations, kafka, mcp, a2a)
+  services/
+    resume-service/  ← Python + FastAPI (gRPC server + MCP tool server)
+    jobflow-api/     ← Python + FastAPI (public REST API)
+    jobflow-crawler/ ← Python (CronJob scraper)
+    jobflow-classifier/ ← Python + Google ADK
+    jobflow-matcher/ ← Python + FastAPI
+    jobflow-application/ ← Python + Google ADK (orchestrator)
+    jobflow-research-agent/ ← Python + Google ADK
+    jobflow-gap-agent/   ← Python + Google ADK
+    jobflow-critic-agent/ ← Python + Google ADK
+    jobflow-prep-agent/  ← Python + Google ADK
+    jobflow-llm/     ← Python + LiteRT-LM
+    jobflow-notifier/ ← Go
+  web/               ← TypeScript + Next.js (user dashboard)
+  training/          ← Python (Unsloth/TRL fine-tuning pipeline)
+  infrastructure/    ← Terraform + Helm (OKE cluster + shared services)
+  docs/plans/        ← architecture + implementation plans
 ```
+
+Each service owns its `Dockerfile`, `charts/` (Helm), and `.github/workflows/` CI/CD. Merging a PR in `services/jobflow-matcher` triggers only that service's pipeline.
+
+## Design decisions (changes from original plan)
+
+| Decision | Original | Current | Reason |
+|---|---|---|---|
+| Contracts location | Separate `jobflow-contracts` repo | `contracts/` in monorepo | Simpler local dev, no cross-repo version pins |
+| jobflow-classifier | Python + FastAPI, gRPC to llm | Python + Google ADK, MCP to llm | All LLM callers use the same ADK+MCP pattern — consistent, no two interface types on llm |
+| jobflow-llm interfaces | gRPC (services) + MCP (agents) | MCP only | Classifier is now ADK — gRPC interface is unused |
+| Auth | JWT + Supabase Auth | JWT + bcrypt + Postgres | No third-party auth dependency, simpler stack |
 
 **Rule:** Terraform provisions what services share. Each service repo deploys itself.  
 **Benefit:** Merging a PR in `jobflow-matcher` deploys only `jobflow-matcher` — no cross-repo coordination, no deployment bottleneck.
