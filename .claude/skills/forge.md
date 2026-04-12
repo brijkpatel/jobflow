@@ -1,5 +1,5 @@
 ---
-name: tasks
+name: forge
 description: Manage the task queue in tasks/queue.json. Auto-extract subtasks from plans, pick ready tasks, handle dependencies. Invoke at session start and after each workflow step.
 ---
 
@@ -288,36 +288,36 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 ### For single-branch tasks
 
 ```bash
-/tasks start "add login endpoint"
+/forge start "add login endpoint"
 # ... write plan ...
-/tasks done plan_written
+/forge done plan_written
 # ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
 # ... implement (TDD) ...
-/tasks done implemented
+/forge done implemented
 # ↑ auto-runs: regression → compliance → developer → qa → specialist (if any)
 # ... chain stops at user_review for your sign-off ...
-/tasks merge        # squash merge to main, delete branch, push
-/tasks finish       # archive task, unblock dependents
+/forge merge        # squash merge to main, delete branch, push
+/forge finish       # archive task, unblock dependents
 ```
 
 ### For multi-branch tasks
 
 ```bash
-/tasks start "build auth service"
+/forge start "build auth service"
 # ... write plan with ### Subtasks section ...
-/tasks done plan_written
+/forge done plan_written
 # ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
-/tasks extract-plan             # auto-parses plan, creates subtasks with deps
-/tasks merge                    # squash merge plan + scaffold to main, delete branch
-/tasks finish                   # archive plan task, unblock subtasks
+/forge extract-plan             # auto-parses plan, creates subtasks with deps
+/forge merge                    # squash merge plan + scaffold to main, delete branch
+/forge finish                   # archive plan task, unblock subtasks
 
 # Later, when ready to implement a subtask:
-/tasks resume                   # picks first ready subtask, creates branch
+/forge resume                   # picks first ready subtask, creates branch
 # ... implement subtask ...
-/tasks done implemented         # auto-runs full review chain
-/tasks merge                    # squash merge subtask to main
-/tasks finish                   # auto-unblocks dependent subtasks
-/tasks resume                   # picks next ready subtask
+/forge done implemented         # auto-runs full review chain
+/forge merge                    # squash merge subtask to main
+/forge finish                   # auto-unblocks dependent subtasks
+/forge resume                   # picks next ready subtask
 # ... repeat ...
 ```
 
