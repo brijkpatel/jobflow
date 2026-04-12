@@ -40,6 +40,66 @@ If no current task and no ready tasks: shows blocked tasks + what they depend on
 4. Auto-detect plan file under `services/<service>/docs/plans/` or `docs/plans/`
 5. `git commit -m "task: start — <description>"`
 6. Show next step: `plan_written`
+7. Automatically suggest running `/forge plan` to enter the planning phase
+
+## `/forge plan`
+
+Guided planning phase. Invokes the `writing-plans` skill to produce the L3 task plan.
+Run this after `/forge start` and before any code changes.
+
+### Pre-conditions
+- A current task must exist (`tasks/queue.json current` is non-null)
+- `plan_written` must NOT already be done (idempotent — safe to re-run if plan needs revision)
+
+### Steps
+
+1. **Read task context**
+   ```bash
+   node scripts/task.js status   # get description, branch, plan path
+   ```
+
+2. **Gather codebase context** (run all of these before writing anything)
+   ```bash
+   # Service name from branch: task/<service>/...
+   git branch --show-current
+
+   # Verify clean slate — no code changes yet
+   git diff main...HEAD --name-only
+
+   # Existing contracts
+   ls contracts/proto/ contracts/kafka/schemas/ contracts/mcp/tools/ \
+      contracts/a2a/cards/ contracts/migrations/ 2>/dev/null
+
+   # Existing plans for this service
+   ls services/<service>/docs/plans/ 2>/dev/null || ls docs/plans/
+
+   # Impact radius: call get_impact_radius on the service directory
+   ```
+   Also read the relevant service source files and the system architecture doc.
+
+3. **Detect specialists** using the signals table in the forge skill (same rules as implementation detection)
+
+4. **Invoke `writing-plans` skill** — follow it completely to produce the plan file
+
+5. **Determine plan file path**
+   - Service-scoped: `services/<service>/docs/plans/YYYY-MM-DD-<slug>.md`
+   - Cross-cutting:  `docs/plans/YYYY-MM-DD-<slug>.md`
+   - Create the directory if it doesn't exist
+
+6. **Update `current.plan` in `tasks/queue.json`** if it still holds the placeholder value (`docs/plans/<add-plan-path>`)
+   ```bash
+   node scripts/task.js set-plan <plan-file-path>
+   # ↑ updates current.plan and commits queue.json automatically
+   ```
+
+7. **Show the plan path** and prompt the user to review it, then run `/forge done plan_written`
+
+### What happens next
+
+After the user reviews the plan and runs `/forge done plan_written`:
+- Forge auto-runs the plan review chain (compliance + detected specialists in parallel)
+- All must APPROVE before `plan_approved` is marked
+- Then run `/forge extract-plan` if the plan has a `### Subtasks` section
 
 ## `/forge done <step>`
 
@@ -289,7 +349,9 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 
 ```bash
 /forge start "add login endpoint"
-# ... write plan ...
+/forge plan                     # guided planning phase (writing-plans skill)
+# ↑ gathers context, writes L3 plan, updates current.plan in queue.json
+# ... review the plan file ...
 /forge done plan_written
 # ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
 # ... implement (TDD) ...
@@ -304,7 +366,9 @@ Subtasks shown with `↳` prefix. Blocked tasks annotated with their dependencie
 
 ```bash
 /forge start "build auth service"
-# ... write plan with ### Subtasks section ...
+/forge plan                     # guided planning phase (writing-plans skill)
+# ↑ gathers context, writes L3 plan with ### Subtasks section
+# ... review the plan file ...
 /forge done plan_written
 # ↑ auto-runs: compliance reviews plan → if approved, marks plan_approved
 /forge extract-plan             # auto-parses plan, creates subtasks with deps

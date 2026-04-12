@@ -17,15 +17,22 @@ If nothing is in progress: pick the next item from the queue or start a new task
   architect agent reviews L2
 
 [Per task]
-  writing-plans skill → L3 task plan
-    └─ declares: files, tests, interfaces, which agents review
-  python scripts/task.py done plan_written
-
-  compliance agent → is the plan achievable? any gaps?
-  python scripts/task.py done plan_approved
-
   git checkout -b task/<service>/<description> main
-  python scripts/task.py start "<description>"
+  /forge start "<description>"
+
+  /forge plan  ← writing-plans skill
+    └─ gathers context: service code, contracts, impact radius
+    └─ detects specialists (architect/ml/a2a/api-security)
+    └─ writes L3 plan: problem, approach, interfaces, files, tests, subtasks
+    └─ updates current.plan in queue.json
+
+  # user reviews the plan file, then:
+  /forge done plan_written
+    └─ compliance agent → is the plan achievable? any gaps?
+    └─ detected specialists → is the design correct for this domain?
+    └─ all approve → auto-marks plan_approved
+
+  /forge extract-plan   ← if plan has ### Subtasks (multi-branch tasks)
 
   implementer subagent (TDD)
     1. write failing test
@@ -33,28 +40,17 @@ If nothing is in progress: pick the next item from the queue or start a new task
     3. write minimal code to pass
     4. all tests pass
     5. commit all changed files
-  python scripts/task.py done implemented
+  /forge done implemented
 
   regression agent   → blast radius + affected service test suites
-  python scripts/task.py done regression
-
   compliance agent   → does diff match the plan exactly?
-  python scripts/task.py done compliance
-
   developer agent    → code quality, SOLID, layer rules
-  python scripts/task.py done developer
-
   qa agent           → test coverage, edge cases, test correctness
-  python scripts/task.py done qa
-
   [role agent if declared] → architect / ml-developer / a2a-specialist / api-security
-  python scripts/task.py done specialist
-
   → show user: task name + 2-line summary
-  python scripts/task.py done user_review
+  → pause for user review
 
-  user approves → squash merge to main → delete branch
-  python scripts/task.py finish   ← removes from queue, promotes next task
+  user approves → /forge merge → /forge finish
 ```
 
 ## Handing off to local LLM mid-task
@@ -98,7 +94,7 @@ reviewers: developer, qa, compliance, regression, a2a-specialist
 | Step | Skill |
 |---|---|
 | Feature ideation | `superpowers:brainstorming` |
-| Write L3 task plan | `superpowers:writing-plans` |
+| Write L3 task plan | `writing-plans` (via `/forge plan`) |
 | Execute plan | `superpowers:subagent-driven-development` |
 | TDD in implementer | `superpowers:test-driven-development` |
 | Code review | `superpowers:requesting-code-review` |

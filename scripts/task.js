@@ -184,7 +184,7 @@ function cmdStart([...rest]) {
   commit(`task: start — ${desc}`);
   console.log(`Started: ${desc}`);
   console.log(`Branch:  ${br}`);
-  console.log(`Next:    plan_written — ${STEP_DESC.plan_written}`);
+  console.log(`Next:    /forge plan  ← write L3 task plan (writing-plans skill)`);
 }
 
 function cmdDone([step]) {
@@ -446,10 +446,30 @@ function cmdList() {
   data.completed.slice(-5).forEach(t => console.log(`  ✓ ${t.description}`));
 }
 
+function cmdSetPlan([planPath]) {
+  if (!planPath) { console.error('Usage: task set-plan <plan-file-path>'); process.exit(1); }
+  const data = load();
+  if (!data.current) { console.error('No task in progress.'); process.exit(1); }
+  const root = repoRoot();
+  const rel = path.relative(root, path.resolve(planPath));
+  data.current.plan = rel;
+  data.current.updated = now();
+  save(data);
+  commit(`task: plan path — ${rel}`);
+  console.log(`Plan set: ${rel}`);
+}
+
+function cmdCurrentDesc() {
+  const data = load();
+  if (!data.current) { console.error('No task in progress.'); process.exit(1); }
+  process.stdout.write(data.current.description);
+}
+
 const COMMANDS = {
   status: cmdStatus, start: cmdStart, done: cmdDone,
   finish: cmdFinish, queue: cmdQueue, resume: cmdResume,
   'extract-plan': cmdExtractPlan, next: cmdNext, list: cmdList,
+  'set-plan': cmdSetPlan, 'current-desc': cmdCurrentDesc,
 };
 
 const [,, cmd = 'status', ...args] = process.argv;
