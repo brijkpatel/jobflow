@@ -113,7 +113,7 @@ for all chunks from a single resume rather than one call per chunk.
 | `fetch_user_resume` MCP tool | create | `contracts/mcp/tools/fetch-user-resume.json` |
 | `resume_service` SQL schema | create | `contracts/migrations/001_resume_service.sql` |
 | `impact-map.json` | add `resume-parsed` (producer + known future consumers) + update `fetch-user-resume` | `contracts/impact-map.json` |
-| `architecture.md` | add `resume-parsed` row to Kafka topic table | `.claude/architecture.md` |
+| `architecture.md` | add `resume-parsed` row to Kafka topic table; update services table: `resume-service` row from "Python + FastAPI" → "Python + gRPC + FastMCP" | `.claude/architecture.md` |
 
 ### Proto — `contracts/proto/resume.proto`
 
@@ -243,6 +243,7 @@ Consumers at contract time: none. Future consumers: `jobflow-matcher`, `jobflow-
   },
   "outputSchema": {
     "type": "object",
+    "required": ["resume_id", "name", "skills", "experience", "education"],
     "properties": {
       "resume_id": { "type": "string" },
       "name":      { "type": "string" },
@@ -253,9 +254,10 @@ Consumers at contract time: none. Future consumers: `jobflow-matcher`, `jobflow-
         "items": {
           "type": "object",
           "properties": {
-            "title":   { "type": "string" },
-            "company": { "type": "string" },
-            "bullets": { "type": "array", "items": { "type": "string" } }
+            "title":           { "type": "string" },
+            "company":         { "type": "string" },
+            "responsibilities": { "type": "array", "items": { "type": "string" } },
+            "skills_used":     { "type": "array", "items": { "type": "string" } }
           }
         }
       },
@@ -272,6 +274,7 @@ Consumers at contract time: none. Future consumers: `jobflow-matcher`, `jobflow-
     }
   }
 }
+
 ```
 
 Auth: `X-Internal-Token` header required (value from `INTERNAL_API_TOKEN` k8s Secret).
@@ -309,9 +312,13 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 ### impact-map.json changes
 
 ```json
-"contracts/kafka/schemas/resume-parsed.json":  ["resume-service", "jobflow-matcher", "jobflow-application"],
+"contracts/kafka/schemas/resume-parsed.json":  ["jobflow-matcher", "jobflow-application"],
 "contracts/mcp/tools/fetch-user-resume.json":  ["jobflow-application"]
 ```
+
+Note: `resume-service` is the **producer** of `resume-parsed`; it does NOT appear as a consumer.
+`resume-service` is the MCP server (producer) of `fetch_user_resume`; it does NOT appear as a
+consumer of that contract either. Only downstream consumers are listed.
 
 ### architecture.md addition — Kafka topic table row
 
@@ -341,9 +348,9 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 | `contracts/proto/resume.proto` | create |
 | `contracts/kafka/schemas/resume-parsed.json` | create |
 | `contracts/mcp/tools/fetch-user-resume.json` | create |
-| `contracts/migrations/003_resume_service.sql` | create |
+| `contracts/migrations/001_resume_service.sql` | create |
 | `contracts/impact-map.json` | modify |
-| `.claude/architecture.md` | modify (add resume-parsed Kafka row) |
+| `.claude/architecture.md` | modify (add resume-parsed Kafka row; update resume-service row to "Python + gRPC + FastMCP") |
 
 ### Service — rename + restructure (services/resume-parser → services/resume-service)
 | File | Action | What changes |
@@ -365,11 +372,11 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 | `services/resume-service/src/infrastructure/kafka/publisher.py` | create | `KafkaEventPublisher(IEventPublisher)` — aiokafka; publishes `resume-parsed` |
 | `services/resume-service/src/infrastructure/parsers/pdf.py` | create | Move + rename `src/parsers/pdf_parser.py` |
 | `services/resume-service/src/infrastructure/parsers/word.py` | create | Move + rename `src/parsers/word_parser.py` |
-| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`: truncate to `model.data_processor.transformer_tokenizer` token limit (fallback constant 512 if attribute unavailable) before `predict_entities()`. Use `model.data_processor.transformer_tokenizer.encode()` to measure and truncate — do NOT use `model.config.max_position_embeddings` (top-level GLiNER config does not expose this attribute on `urchade/gliner_multi_pii-v1`) |
+| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`: read token limit via `getattr(model.config, 'max_len', 384)` — for `urchade/gliner_multi_pii-v1` this resolves to 384 (confirmed in `gliner_config.json`). Use `model.data_processor.transformer_tokenizer.encode()` to tokenize and slice to that limit before passing to `predict_entities()`. Fallback of 384 is the actual model value, not an approximation. Do NOT use `model.config.max_position_embeddings` (backbone attribute, not the GLiNER-level limit). |
 | `services/resume-service/src/infrastructure/mcp/tools.py` | create | FastMCP server on `MCP_PORT`; exposes `fetch_user_resume`; validates `X-Internal-Token`; calls `GetLatestResumeUseCase` injected from composition root |
 | `services/resume-service/src/api/grpc/server.py` | create | gRPC servicer on `GRPC_PORT`; calls use case; maps domain ↔ proto |
 | `services/resume-service/src/api/grpc/generated/` | create | Output of `python -m grpc_tools.protoc` on `resume.proto` |
-| `services/resume-service/src/config.py` | create | Pydantic `Settings`; all env vars; startup dim-check: call `embed_batch(["test"])`, assert `len(result[0]) == 384` |
+| `services/resume-service/src/config.py` | create | Pydantic `Settings`; all env vars; startup dim-check: call `embed_batch(["test"])`, assert `len(result[0]) == settings.expected_embedding_dim` (from `EXPECTED_EMBEDDING_DIM` env var, default 384) |
 | `services/resume-service/src/main.py` | create | Composition root; starts gRPC (50051) + MCP (8090) + health HTTP (8080) |
 | `services/resume-service/pyproject.toml` | create | Rename to `resume-service`; required: `grpcio`, `grpcio-tools`, `asyncpg`, `qdrant-client`, `aiokafka`, `fastmcp`, `sentence-transformers`, `pydantic-settings`, `oci-python-sdk`; optional `google-generativeai` (dev extra) |
 | `services/resume-service/Dockerfile` | create | Multi-stage, `--platform linux/arm64`; pre-bakes GLiNER weights; `EXPOSE 50051 8090 8080` |
@@ -387,7 +394,7 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 | `services/resume-service/tests/integration/test_grpc_server.py` | create | gRPC round-trip with fixture PDF |
 | `services/resume-service/tests/integration/test_postgres_repository.py` | create | asyncpg against Docker Postgres |
 | `services/resume-service/tests/integration/test_qdrant_repository.py` | create | qdrant-client against Docker Qdrant |
-| `services/resume-service/tests/integration/test_mcp_server.py` | create | MCP auth + fetch_user_resume response shape |
+| `services/resume-service/tests/integration/test_mcp_server.py` | create | MCP auth + fetch_user_resume response shape + cross-tenant isolation |
 | `services/resume-service/tests/integration/test_kafka_publisher.py` | create | resume-parsed event schema verification |
 | `services/resume-service/tests/fixtures/resumes/` | move from `sample_resumes/` | Fixture PDFs for integration tests |
 
@@ -422,11 +429,11 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 - `test_resume_chunk_has_no_embedding_field()`
 
 **Unit — NER truncation** (`tests/unit/test_extractors.py`, class `TestNERExtractionStrategy`):
-- `test_ner_strategy_truncates_input_exceeding_model_max_tokens()` — input that would exceed 512
-  tokens is truncated using `model.data_processor.transformer_tokenizer` (fallback: constant 512)
-  before `predict_entities()` is called; mock verifies the truncated text is passed to
-  `predict_entities()`, not the original long text; also verifies fallback to 512 when
-  `transformer_tokenizer` is unavailable
+- `test_ner_strategy_truncates_input_exceeding_model_max_tokens()` — input that would exceed 384
+  tokens is truncated to `getattr(model.config, 'max_len', 384)` tokens using
+  `model.data_processor.transformer_tokenizer.encode()` before `predict_entities()` is called;
+  mock verifies the truncated token sequence is passed, not the original long text; also verifies
+  fallback to 384 when `model.config.max_len` is not present
 
 **Integration — `PostgresResumeRepository`**:
 - `test_save_and_get_resume_round_trip()`
@@ -439,9 +446,12 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 **Integration — gRPC server** (`tests/integration/test_grpc_server.py`):
 - `test_parse_resume_grpc_returns_populated_response()` — uses fixture PDF from `tests/fixtures/`
 
-**Integration — MCP token auth**:
+**Integration — MCP token auth + tenant isolation**:
 - `test_fetch_user_resume_rejects_missing_token()` — no `X-Internal-Token` → 401
 - `test_fetch_user_resume_accepts_valid_token()` — correct token → resume data returned
+- `test_fetch_user_resume_rejects_wrong_tenant()` — valid token, real `user_id`, but `tenant_id`
+  belonging to a different tenant → empty/null result (not the other tenant's resume). Asserts
+  multi-tenant PII isolation at the MCP layer.
 
 **Integration — Kafka publish verification**:
 - `test_resume_parsed_event_published_with_correct_schema()` — test subscribes to `resume-parsed`
@@ -484,6 +494,7 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 | `JOBFLOW_LLM_MCP_URL` | `http://jobflow-llm:8080/mcp` | jobflow-llm MCP endpoint |
 | `MAX_LLM_INPUT_CHARS` | `100000` | LLM input char truncation limit (≈25k tokens at 4 chars/token; leaves headroom for prompt + output in Gemma 3n 32k-token window) |
 | `EMBEDDING_MODEL_VERSION` | `sentence-transformers/all-MiniLM-L6-v2` | Must match jobflow-classifier |
+| `EXPECTED_EMBEDDING_DIM` | `384` | Expected output dimension for startup dim-check; fails startup if `embed_batch(["test"])` returns vectors of a different length. Derived from the model: all-MiniLM-L6-v2 = 384. Must be updated if embedding model changes. |
 | `INTERNAL_API_TOKEN` | `<secret>` | Shared bearer token for MCP auth (from k8s Secret) |
 | `GEMINI_API_KEY` | _(optional, dev only)_ | Required only when `LLM_BACKEND=gemini` |
 
@@ -497,13 +508,13 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 
 ### Subtasks
 
-1. Write contract artifacts (proto + Kafka schema + MCP tool + SQL migration + impact-map update + architecture.md Kafka row) — also delete stale `services/resume-service/` directory before any restructuring begins
+1. Write contract artifacts (proto + Kafka schema + MCP tool + SQL migration + impact-map update + architecture.md Kafka row + architecture.md services table: resume-service "Python + FastAPI" → "Python + gRPC + FastMCP") — also delete stale `services/resume-service/` directory before any restructuring begins
 2. Expand domain models — ResumeData + ResumeChunk (no embedding) + all domain interfaces including IEmbeddingClient + IFileStorage (depends on: Write contract artifacts)
 3. Restructure into domain/application/infrastructure/api layers — move existing code, delete standalone artifacts, move sample_resumes to tests/fixtures, add composition root skeleton (depends on: Expand domain models)
 4. Replace Gemini with JobflowLLMClient — BatchedLLMExtractor + ILLMClient + config factory + MAX_LLM_INPUT_CHARS truncation + NER 2000-char guard (depends on: Restructure into domain/application/infrastructure/api layers)
 5. Add JobflowEmbeddingClient — embed_batch batched MCP call + startup dim-check (depends on: Restructure into domain/application/infrastructure/api layers)
 6. Add PostgresResumeRepository — asyncpg save + get_by_id + get_latest_by_user (depends on: Restructure into domain/application/infrastructure/api layers)
-7. Add QdrantVectorRepository — upsert ResumeChunkVector + reconstruct section data for GetResume (depends on: Restructure into domain/application/infrastructure/api layers)
+7. Add QdrantVectorRepository — upsert ResumeChunkVector (write-only; no GetResume dependency; Qdrant unavailability must not affect read RPCs) (depends on: Restructure into domain/application/infrastructure/api layers)
 8. Add Kafka publisher — resume-parsed event with tenant_id (depends on: Restructure into domain/application/infrastructure/api layers)
 9. Add OCI storage client — fetch object by path (depends on: Restructure into domain/application/infrastructure/api layers)
 10. Add gRPC API layer — ParseResume + GetResume + GetLatestResume servicer, generated stubs from proto (depends on: Write contract artifacts, Restructure into domain/application/infrastructure/api layers)

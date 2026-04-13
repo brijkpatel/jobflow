@@ -1,0 +1,8 @@
+{
+  "aliases": {
+    "code": "openai/qwen2.5-coder:32b-instruct-q3_K_M",
+    "plan": "openai/litwise-coder:latest",
+    "fast-code": "openai/qwen2.5-coder:14b",
+    "quick": "openai/qwen2.5-coder:7b"
+  }
+}
