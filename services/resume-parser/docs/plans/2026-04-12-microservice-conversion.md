@@ -39,8 +39,12 @@ for all chunks from a single resume rather than one call per chunk.
 - `ILLMClient` Protocol in `domain/interfaces.py`: `extract_fields(text, fields) → dict`.
   `JobflowLLMClient` (production) calls `jobflow-llm` MCP `/extract`. `GeminiLLMClient` (local
   dev) wraps existing `LLMExtractionStrategy`. Active backend: `LLM_BACKEND` env var.
-  Input text truncated to `MAX_LLM_INPUT_CHARS` (config, default 12 000) before every call to
-  guard against Gemma 3n context window overflow.
+  Input text truncated to `MAX_LLM_INPUT_CHARS` (config, default 100 000 chars ≈ 25 000 tokens)
+  before every call to guard against Gemma 3n context window overflow. Gemma 3n has a 32k-token
+  window; 100k chars at ~4 chars/token ≈ 25k tokens, leaving ~7k tokens for the batched prompt
+  template and structured output. Character-count truncation is used here (not token-count) as
+  a conservative pre-filter — the model-side truncation at `jobflow-llm` is the authoritative
+  guard. CJK-heavy resumes are pathological edge cases not targeted in this task (out of scope).
 
 - `IEmbeddingClient` Protocol in `domain/interfaces.py`: `embed_batch(texts: list[str]) →
   list[list[float]]`. Single batched MCP call per resume; `EMBEDDING_MODEL_VERSION` env var pins
@@ -48,6 +52,13 @@ for all chunks from a single resume rather than one call per chunk.
 
 - Batched extraction: `BatchedLLMExtractor` replaces `LLMExtractionStrategy` for all 5 structured
   fields; regex/NER strategies unchanged for name, email, phone, skills, location, URLs.
+  The batched prompt instructs the model to return a single top-level JSON object keyed by field
+  name: `{"summary": "...", "work_experience": [...], "education": [...], "certifications": [...],
+  "projects": [...]}`. Each value uses the existing per-field schema from `_STRUCTURED_SCHEMAS`
+  (carried forward from `strategies/llm.py`). Partial-key handling: if a key is absent or null in
+  the response, that field is set to `None` (scalars) or `[]` (lists) — same default as the
+  current per-field fallback. `BatchedLLMExtractor._parse_response()` iterates expected keys and
+  fills missing ones with defaults before returning, so callers never see a `KeyError`.
 
 - `ResumeData` gains `resume_id: UUID`, `user_id: UUID`, `tenant_id: UUID`, `created_at:
   datetime`. Remove `to_dict()` / `to_json()` (serialisation is infrastructure concern).
@@ -78,9 +89,10 @@ for all chunks from a single resume rather than one call per chunk.
   by `X-Internal-Token` header (value from `INTERNAL_API_TOKEN` env var, injected via k8s Secret).
   Response returns a trimmed agent-facing shape (not full proto dump) — see contract section.
 
-- LangFuse tracing is **deferred** (out of scope). All LLM/embed calls use a no-op `TracingClient`
-  stub in this task. The stub has the same interface as the real LangFuse client so it can be
-  swapped in a follow-up without code changes.
+- LangFuse tracing is **deferred** (out of scope for this task; tracked as subtask 16 below).
+  All LLM/embed calls use a no-op `TracingClient` stub in this task. The stub has the same
+  interface as the real LangFuse client so it can be swapped in subtask 16 without touching
+  any call sites.
 
 - `sample_resumes/` renamed to `tests/fixtures/resumes/` — not deleted. Required for integration
   and acceptance tests.
@@ -99,7 +111,7 @@ for all chunks from a single resume rather than one call per chunk.
 | `ResumeService.GetLatestResume` gRPC | create | `contracts/proto/resume.proto` |
 | `resume-parsed` Kafka topic + DLQ | create | `contracts/kafka/schemas/resume-parsed.json` |
 | `fetch_user_resume` MCP tool | create | `contracts/mcp/tools/fetch-user-resume.json` |
-| `resume_service` SQL schema | create | `contracts/migrations/003_resume_service.sql` |
+| `resume_service` SQL schema | create | `contracts/migrations/001_resume_service.sql` |
 | `impact-map.json` | add `resume-parsed` (producer + known future consumers) + update `fetch-user-resume` | `contracts/impact-map.json` |
 | `architecture.md` | add `resume-parsed` row to Kafka topic table | `.claude/architecture.md` |
 
@@ -264,7 +276,7 @@ Consumers at contract time: none. Future consumers: `jobflow-matcher`, `jobflow-
 
 Auth: `X-Internal-Token` header required (value from `INTERNAL_API_TOKEN` k8s Secret).
 
-### SQL — `contracts/migrations/003_resume_service.sql`
+### SQL — `contracts/migrations/001_resume_service.sql`
 
 ```sql
 CREATE TABLE resumes (
@@ -298,7 +310,7 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 
 ```json
 "contracts/kafka/schemas/resume-parsed.json":  ["resume-service", "jobflow-matcher", "jobflow-application"],
-"contracts/mcp/tools/fetch-user-resume.json":  ["resume-service", "jobflow-application"]
+"contracts/mcp/tools/fetch-user-resume.json":  ["jobflow-application"]
 ```
 
 ### architecture.md addition — Kafka topic table row
@@ -353,7 +365,7 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 | `services/resume-service/src/infrastructure/kafka/publisher.py` | create | `KafkaEventPublisher(IEventPublisher)` — aiokafka; publishes `resume-parsed` |
 | `services/resume-service/src/infrastructure/parsers/pdf.py` | create | Move + rename `src/parsers/pdf_parser.py` |
 | `services/resume-service/src/infrastructure/parsers/word.py` | create | Move + rename `src/parsers/word_parser.py` |
-| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`: truncate to `model.config.max_position_embeddings` tokens using the model's own tokenizer before `predict_entities()` |
+| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`: truncate to `model.data_processor.transformer_tokenizer` token limit (fallback constant 512 if attribute unavailable) before `predict_entities()`. Use `model.data_processor.transformer_tokenizer.encode()` to measure and truncate — do NOT use `model.config.max_position_embeddings` (top-level GLiNER config does not expose this attribute on `urchade/gliner_multi_pii-v1`) |
 | `services/resume-service/src/infrastructure/mcp/tools.py` | create | FastMCP server on `MCP_PORT`; exposes `fetch_user_resume`; validates `X-Internal-Token`; calls `GetLatestResumeUseCase` injected from composition root |
 | `services/resume-service/src/api/grpc/server.py` | create | gRPC servicer on `GRPC_PORT`; calls use case; maps domain ↔ proto |
 | `services/resume-service/src/api/grpc/generated/` | create | Output of `python -m grpc_tools.protoc` on `resume.proto` |
@@ -411,8 +423,10 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 
 **Unit — NER truncation** (`tests/unit/test_extractors.py`, class `TestNERExtractionStrategy`):
 - `test_ner_strategy_truncates_input_exceeding_model_max_tokens()` — input that would exceed 512
-  tokens is truncated to `model.config.max_position_embeddings` tokens via tokenizer before
-  `predict_entities()` is called; mock verifies truncated text, not original
+  tokens is truncated using `model.data_processor.transformer_tokenizer` (fallback: constant 512)
+  before `predict_entities()` is called; mock verifies the truncated text is passed to
+  `predict_entities()`, not the original long text; also verifies fallback to 512 when
+  `transformer_tokenizer` is unavailable
 
 **Integration — `PostgresResumeRepository`**:
 - `test_save_and_get_resume_round_trip()`
@@ -468,7 +482,7 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 | `OCI_CONFIG_FILE` | `/etc/oci/config` | OCI SDK config path |
 | `LLM_BACKEND` | `jobflow-llm` | `jobflow-llm` or `gemini` |
 | `JOBFLOW_LLM_MCP_URL` | `http://jobflow-llm:8080/mcp` | jobflow-llm MCP endpoint |
-| `MAX_LLM_INPUT_CHARS` | `12000` | LLM input truncation limit |
+| `MAX_LLM_INPUT_CHARS` | `100000` | LLM input char truncation limit (≈25k tokens at 4 chars/token; leaves headroom for prompt + output in Gemma 3n 32k-token window) |
 | `EMBEDDING_MODEL_VERSION` | `sentence-transformers/all-MiniLM-L6-v2` | Must match jobflow-classifier |
 | `INTERNAL_API_TOKEN` | `<secret>` | Shared bearer token for MCP auth (from k8s Secret) |
 | `GEMINI_API_KEY` | _(optional, dev only)_ | Required only when `LLM_BACKEND=gemini` |
@@ -478,7 +492,7 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 - `enriched_skills` population (deferred to `jobflow-classifier`)
 - `volunteer_experience` and `publications` LLM extraction (extracted as empty lists)
 - Auth / JWT on the gRPC endpoint — handled at `jobflow-api` layer
-- LangFuse tracing — `ITracingClient` stub added now; real client wired in a follow-up task
+- LangFuse tracing — `ITracingClient` stub added now; real client wired in subtask 16
 - `jobflow-web` or `jobflow-api` changes — consuming side not touched here
 
 ### Subtasks
@@ -498,3 +512,4 @@ ALTER TABLE resumes ADD COLUMN parsed_data JSONB;  -- stores full ResumeData str
 13. pyproject.toml + Dockerfile — rename service, update deps, multi-stage ARM64 build with baked GLiNER weights, EXPOSE 50051 8090 8080 (depends on: Wire ParseResumeUseCase)
 14. Update all tests — path changes + new field coverage + mock ILLMClient + mock IEmbeddingClient + MCP auth tests + Kafka publish verification (depends on: Wire ParseResumeUseCase)
 15. Wire main.py composition root — start gRPC + MCP + health servers with all adapters (depends on: Add gRPC API layer, Add MCP tool server, Wire ParseResumeUseCase, pyproject.toml + Dockerfile)
+16. Wire LangFuse tracing — replace no-op TracingClientStub with real LangFuse client in LangfuseTracingClient(ITracingClient); add LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY + LANGFUSE_HOST env vars (depends on: Wire main.py composition root)
