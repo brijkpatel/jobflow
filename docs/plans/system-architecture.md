@@ -58,7 +58,7 @@ Repos use prefix `jobflow-*` — confirm before creating.
 - Stores PDF to OCI Object Storage, URL in Postgres
 - Chunks resume text → embeds with `all-MiniLM-L6-v2` → upserts to Qdrant `resume_chunks`
 - Exposes gRPC server (called by `jobflow-api`)
-- Exposes **MCP tool server** at `/mcp`: `fetch_user_resume(resume_id)` → used by ApplicationAgent
+- Exposes **MCP tool server** at `/mcp`: `fetch_user_resume(user_id, tenant_id)` → used by ApplicationAgent
 - **Scales:** HPA on CPU (min 1, max 5)
 
 ### 4. `jobflow-crawler` — Python + HTTPX
@@ -582,7 +582,7 @@ ApplicationAgent (jobflow-application) — ADK orchestrator
 | MCP Tool | Hosted By | Implementation |
 |----------|-----------|---------------|
 | `fetch_job_details(job_id)` | `jobflow-classifier` (owns jobs data) | Reads from Postgres |
-| `fetch_user_resume(resume_id)` | `resume-service` (owns resumes) | Reads from Postgres + OCI |
+| `fetch_user_resume(user_id, tenant_id)` | `resume-service` (owns resumes) | Reads from Postgres |
 | `generate(prompt, ...)` | `jobflow-llm` | LiteRT-LM inference |
 | `web_search(query)` | `jobflow-research-agent` (sidecar) | Brave Search API |
 | `scrape_url(url)` | `jobflow-research-agent` (sidecar) | HTTPX + BeautifulSoup |
