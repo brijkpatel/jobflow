@@ -8,6 +8,8 @@
 
   "contracts/proto/resume.proto":                    ["resume-service", "jobflow-api"],
 
+  "contracts/kafka/schemas/resume-parsed.json":      ["jobflow-matcher", "jobflow-application"],
+
   "contracts/mcp/tools/generate.json":               ["jobflow-classifier", "jobflow-application", "jobflow-research-agent", "jobflow-gap-agent", "jobflow-critic-agent", "jobflow-prep-agent"],
   "contracts/mcp/tools/fetch-job-details.json":      ["jobflow-application"],
   "contracts/mcp/tools/fetch-user-resume.json":      ["jobflow-application"],

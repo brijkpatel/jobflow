@@ -6,7 +6,7 @@
 |---|---|---|---|
 | jobflow-web | Next.js | OCI CDN | User dashboard — upload, HITL, history |
 | jobflow-api | Python + FastAPI | HPA RPS (2-10) | Public REST API, auth, SSE |
-| resume-service | Python + FastAPI | HPA CPU (1-5) | Parse, embed, store resumes |
+| resume-service | Python + gRPC + FastMCP | HPA CPU (1-5) | Parse, embed, store resumes |
 | jobflow-crawler | Python | CronJob 30min | Scrape job boards, dedup, publish raw-jobs |
 | jobflow-classifier | Python + ADK | KEDA raw-jobs lag (0-5) | Enrich + embed jobs via LLM |
 | jobflow-matcher | Python + FastAPI | KEDA classified-jobs lag (0-5) | Vector match jobs to resumes |
@@ -39,6 +39,7 @@
 | classified-jobs | classifier | matcher | classified-jobs.DLQ |
 | match-results | matcher | application | match-results.DLQ |
 | application-events | application | notifier | application-events.DLQ |
+| resume-parsed | resume-service | jobflow-matcher, jobflow-application (built in later tasks) | resume-parsed.DLQ |
 
 ## Data stores
 

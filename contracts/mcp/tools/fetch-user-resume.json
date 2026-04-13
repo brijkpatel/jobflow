@@ -1,0 +1,44 @@
+{
+  "name": "fetch_user_resume",
+  "description": "Fetch the user's latest parsed resume as a structured summary for content generation. Returns trimmed agent-facing shape — not the full proto.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "user_id":   { "type": "string", "format": "uuid" },
+      "tenant_id": { "type": "string", "format": "uuid" }
+    },
+    "required": ["user_id", "tenant_id"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": ["resume_id", "name", "skills", "experience", "education"],
+    "properties": {
+      "resume_id": { "type": "string" },
+      "name":      { "type": "string" },
+      "summary":   { "type": "string" },
+      "skills":    { "type": "array", "items": { "type": "string" } },
+      "experience": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title":            { "type": "string" },
+            "company":          { "type": "string" },
+            "responsibilities": { "type": "array", "items": { "type": "string" } },
+            "skills_used":      { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "education": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "degree":      { "type": "string" },
+            "institution": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

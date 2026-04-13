@@ -1,0 +1,92 @@
+syntax = "proto3";
+package resume;
+
+service ResumeService {
+  rpc ParseResume      (ParseResumeRequest)       returns (ParseResumeResponse);
+  rpc GetResume        (GetResumeRequest)          returns (GetResumeResponse);
+  rpc GetLatestResume  (GetLatestResumeRequest)    returns (GetLatestResumeResponse);
+}
+
+message ParseResumeRequest {
+  string user_id        = 1;
+  string tenant_id      = 2;
+  string storage_object = 3;  // OCI Object Storage path: "resumes/<tenant>/<uuid>.pdf"
+  string file_name      = 4;  // original filename for format detection
+}
+message ParseResumeResponse {
+  string      resume_id = 1;
+  ResumeProto resume    = 2;
+}
+
+message GetResumeRequest          { string resume_id = 1; string tenant_id = 2; }
+message GetResumeResponse         { ResumeProto resume = 1; }
+message GetLatestResumeRequest    { string user_id = 1; string tenant_id = 2; }
+message GetLatestResumeResponse   { string resume_id = 1; ResumeProto resume = 2; }
+
+message ResumeProto {
+  string resume_id   = 1;
+  string user_id     = 2;
+  string tenant_id   = 3;
+  string name        = 4;
+  string email       = 5;
+  repeated string skills = 6;
+  ContactProto contact   = 7;
+  string summary         = 8;
+  repeated WorkExperienceProto work_experience  = 9;
+  repeated EducationProto      education        = 10;
+  repeated CertificationProto  certifications   = 11;
+  repeated ProjectProto        projects         = 12;
+  repeated string interests  = 13;
+  repeated string languages  = 14;
+  repeated string awards     = 15;
+  string created_at = 16;  // ISO-8601
+}
+
+message ContactProto {
+  string phone         = 1;
+  string location      = 2;
+  string linkedin_url  = 3;
+  string github_url    = 4;
+  string portfolio_url = 5;
+  repeated string other_urls = 6;
+}
+
+message WorkExperienceProto {
+  string company          = 1;
+  string title            = 2;
+  string location         = 3;
+  string start_date       = 4;
+  string end_date         = 5;
+  int32  duration_months  = 6;
+  string description      = 7;
+  repeated string responsibilities = 8;
+  repeated string skills_used      = 9;
+}
+
+message EducationProto {
+  string institution    = 1;
+  string degree         = 2;
+  string field_of_study = 3;
+  string start_date     = 4;
+  string end_date       = 5;
+  float  gpa            = 6;
+  string honors         = 7;
+}
+
+message CertificationProto {
+  string name                 = 1;
+  string issuing_organization = 2;
+  string issue_date           = 3;
+  string expiry_date          = 4;
+  string credential_id        = 5;
+  string credential_url       = 6;
+}
+
+message ProjectProto {
+  string          name         = 1;
+  string          description  = 2;
+  repeated string technologies = 3;
+  string          url          = 4;
+  string          start_date   = 5;
+  string          end_date     = 6;
+}
