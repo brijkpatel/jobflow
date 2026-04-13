@@ -372,7 +372,7 @@ consumer of that contract either. Only downstream consumers are listed.
 | `services/resume-service/src/infrastructure/kafka/publisher.py` | create | `KafkaEventPublisher(IEventPublisher)` — aiokafka; publishes `resume-parsed` |
 | `services/resume-service/src/infrastructure/parsers/pdf.py` | create | Move + rename `src/parsers/pdf_parser.py` |
 | `services/resume-service/src/infrastructure/parsers/word.py` | create | Move + rename `src/parsers/word_parser.py` |
-| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`. GLiNER's `max_len=384` counts **word-level tokens** from `data_processor.words_splitter` (not subword tokens). Truncation guard: `max_len = getattr(model.config, 'max_len', 384)`, then `words = model.data_processor.words_splitter(text)`, `text = " ".join(words[:max_len])` — pass the truncated string to `predict_entities(text, labels)`. Note: GLiNER's processor already truncates internally at `max_len` words with a `UserWarning`; this guard makes the truncation explicit and testable instead of silently firing inside GLiNER. Do NOT use `transformer_tokenizer.encode()` to measure length (subword count does not equal word count). |
+| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`. GLiNER's `max_len=384` counts **word-level tokens** from `data_processor.words_splitter` (not subword tokens). `words_splitter` yields `(token_str, start_char, end_char)` 3-tuples — destructure before slicing. Truncation guard: `max_len = getattr(model.config, 'max_len', 384)`, then `words = [tok for tok, _s, _e in model.data_processor.words_splitter(text)]`, `text = " ".join(words[:max_len])` — pass the truncated string to `predict_entities(text, labels)`. Note: GLiNER's processor already truncates internally at `max_len` words with a `UserWarning`; this guard makes the truncation explicit and testable. Do NOT use `transformer_tokenizer.encode()` (subword ≠ word count). Do NOT do `" ".join(words_splitter(text)[:max_len])` without destructuring — that would `join` tuples and raise `TypeError`. |
 | `services/resume-service/src/infrastructure/mcp/tools.py` | create | FastMCP server on `MCP_PORT`; exposes `fetch_user_resume`; validates `X-Internal-Token`; calls `GetLatestResumeUseCase` injected from composition root |
 | `services/resume-service/src/api/grpc/server.py` | create | gRPC servicer on `GRPC_PORT`; calls use case; maps domain ↔ proto |
 | `services/resume-service/src/api/grpc/generated/` | create | Output of `python -m grpc_tools.protoc` on `resume.proto` |
@@ -430,11 +430,12 @@ consumer of that contract either. Only downstream consumers are listed.
 
 **Unit — NER truncation** (`tests/unit/test_extractors.py`, class `TestNERExtractionStrategy`):
 - `test_ner_strategy_truncates_input_exceeding_model_max_tokens()` — input text with more than
-  384 words is truncated by slicing `model.data_processor.words_splitter(text)[:max_len]` and
-  rejoining to a string before `predict_entities()` is called; mock verifies the truncated
-  string (not the original) is passed to `predict_entities()`; also verifies fallback to 384
-  when `model.config.max_len` is absent. Note: the test mocks `predict_entities` and
-  `words_splitter` — it does NOT mock `transformer_tokenizer.encode()`.
+  384 words is truncated: `words_splitter` mock returns a list of 3-tuples
+  `[(word, start, end), ...]`; strategy destructures to `[tok for tok, _s, _e in ...]`, slices
+  to `[:max_len]`, rejoins to a string, and passes the truncated string to `predict_entities()`;
+  mock verifies the truncated string is passed (not the original). Also verifies fallback to 384
+  when `model.config.max_len` is absent. The mock for `words_splitter` must yield 3-tuples —
+  NOT plain strings — to match the real splitter's `(token_str, start_char, end_char)` output.
 
 **Integration — `PostgresResumeRepository`**:
 - `test_save_and_get_resume_round_trip()`
@@ -512,7 +513,7 @@ consumer of that contract either. Only downstream consumers are listed.
 1. Write contract artifacts (proto + Kafka schema + MCP tool + SQL migration + impact-map update + architecture.md Kafka row + architecture.md services table: resume-service "Python + FastAPI" → "Python + gRPC + FastMCP") — also delete stale `services/resume-service/` directory before any restructuring begins
 2. Expand domain models — ResumeData + ResumeChunk (no embedding) + all domain interfaces including IEmbeddingClient + IFileStorage (depends on: Write contract artifacts)
 3. Restructure into domain/application/infrastructure/api layers — move existing code, delete standalone artifacts, move sample_resumes to tests/fixtures, add composition root skeleton (depends on: Expand domain models)
-4. Replace Gemini with JobflowLLMClient — BatchedLLMExtractor + ILLMClient + config factory + MAX_LLM_INPUT_CHARS truncation + NER word-count truncation guard (words_splitter[:max_len], max_len=getattr(model.config,'max_len',384)) (depends on: Restructure into domain/application/infrastructure/api layers)
+4. Replace Gemini with JobflowLLMClient — BatchedLLMExtractor + ILLMClient + config factory + MAX_LLM_INPUT_CHARS truncation + NER word-count guard: [tok for tok,_s,_e in words_splitter(text)][:max_len] joined to str, max_len=getattr(model.config,'max_len',384) (depends on: Restructure into domain/application/infrastructure/api layers)
 5. Add JobflowEmbeddingClient — embed_batch batched MCP call + startup dim-check (depends on: Restructure into domain/application/infrastructure/api layers)
 6. Add PostgresResumeRepository — asyncpg save + get_by_id + get_latest_by_user (depends on: Restructure into domain/application/infrastructure/api layers)
 7. Add QdrantVectorRepository — upsert ResumeChunkVector (write-only; no GetResume dependency; Qdrant unavailability must not affect read RPCs) (depends on: Restructure into domain/application/infrastructure/api layers)
