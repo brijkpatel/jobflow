@@ -16,9 +16,9 @@
       "user_review": false,
       "merged": false
     },
-    "last_completed": "plan_approved",
+    "last_completed": "plan_written",
     "started": "2026-04-12T10:13:24.321Z",
-    "updated": "2026-04-13T04:25:50.761Z",
+    "updated": "2026-04-13T04:27:33.028Z",
     "parent_id": null,
     "subtask_ids": [
       "20260413042550760",
