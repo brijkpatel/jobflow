@@ -372,7 +372,7 @@ consumer of that contract either. Only downstream consumers are listed.
 | `services/resume-service/src/infrastructure/kafka/publisher.py` | create | `KafkaEventPublisher(IEventPublisher)` — aiokafka; publishes `resume-parsed` |
 | `services/resume-service/src/infrastructure/parsers/pdf.py` | create | Move + rename `src/parsers/pdf_parser.py` |
 | `services/resume-service/src/infrastructure/parsers/word.py` | create | Move + rename `src/parsers/word_parser.py` |
-| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`: read token limit via `getattr(model.config, 'max_len', 384)` — for `urchade/gliner_multi_pii-v1` this resolves to 384 (confirmed in `gliner_config.json`). Use `model.data_processor.transformer_tokenizer.encode()` to tokenize and slice to that limit before passing to `predict_entities()`. Fallback of 384 is the actual model value, not an approximation. Do NOT use `model.config.max_position_embeddings` (backbone attribute, not the GLiNER-level limit). |
+| `services/resume-service/src/infrastructure/extractors/` | create | Move existing `extractors/` tree; replace `LLMExtractionStrategy` with `BatchedLLMExtractor`; add NER truncation guard in `strategies/ner.py`. GLiNER's `max_len=384` counts **word-level tokens** from `data_processor.words_splitter` (not subword tokens). Truncation guard: `max_len = getattr(model.config, 'max_len', 384)`, then `words = model.data_processor.words_splitter(text)`, `text = " ".join(words[:max_len])` — pass the truncated string to `predict_entities(text, labels)`. Note: GLiNER's processor already truncates internally at `max_len` words with a `UserWarning`; this guard makes the truncation explicit and testable instead of silently firing inside GLiNER. Do NOT use `transformer_tokenizer.encode()` to measure length (subword count does not equal word count). |
 | `services/resume-service/src/infrastructure/mcp/tools.py` | create | FastMCP server on `MCP_PORT`; exposes `fetch_user_resume`; validates `X-Internal-Token`; calls `GetLatestResumeUseCase` injected from composition root |
 | `services/resume-service/src/api/grpc/server.py` | create | gRPC servicer on `GRPC_PORT`; calls use case; maps domain ↔ proto |
 | `services/resume-service/src/api/grpc/generated/` | create | Output of `python -m grpc_tools.protoc` on `resume.proto` |
@@ -429,11 +429,12 @@ consumer of that contract either. Only downstream consumers are listed.
 - `test_resume_chunk_has_no_embedding_field()`
 
 **Unit — NER truncation** (`tests/unit/test_extractors.py`, class `TestNERExtractionStrategy`):
-- `test_ner_strategy_truncates_input_exceeding_model_max_tokens()` — input that would exceed 384
-  tokens is truncated to `getattr(model.config, 'max_len', 384)` tokens using
-  `model.data_processor.transformer_tokenizer.encode()` before `predict_entities()` is called;
-  mock verifies the truncated token sequence is passed, not the original long text; also verifies
-  fallback to 384 when `model.config.max_len` is not present
+- `test_ner_strategy_truncates_input_exceeding_model_max_tokens()` — input text with more than
+  384 words is truncated by slicing `model.data_processor.words_splitter(text)[:max_len]` and
+  rejoining to a string before `predict_entities()` is called; mock verifies the truncated
+  string (not the original) is passed to `predict_entities()`; also verifies fallback to 384
+  when `model.config.max_len` is absent. Note: the test mocks `predict_entities` and
+  `words_splitter` — it does NOT mock `transformer_tokenizer.encode()`.
 
 **Integration — `PostgresResumeRepository`**:
 - `test_save_and_get_resume_round_trip()`
@@ -494,7 +495,7 @@ consumer of that contract either. Only downstream consumers are listed.
 | `JOBFLOW_LLM_MCP_URL` | `http://jobflow-llm:8080/mcp` | jobflow-llm MCP endpoint |
 | `MAX_LLM_INPUT_CHARS` | `100000` | LLM input char truncation limit (≈25k tokens at 4 chars/token; leaves headroom for prompt + output in Gemma 3n 32k-token window) |
 | `EMBEDDING_MODEL_VERSION` | `sentence-transformers/all-MiniLM-L6-v2` | Must match jobflow-classifier |
-| `EXPECTED_EMBEDDING_DIM` | `384` | Expected output dimension for startup dim-check; fails startup if `embed_batch(["test"])` returns vectors of a different length. Derived from the model: all-MiniLM-L6-v2 = 384. Must be updated if embedding model changes. |
+| `EXPECTED_EMBEDDING_DIM` | `384` | Expected output dimension for startup dim-check; fails startup if `embed_batch(["test"])` returns vectors of a different length. Derived from the model: all-MiniLM-L6-v2 = 384. Must be updated if embedding model changes. **Note:** `jobflow-classifier` writes to the same Qdrant embedding space (`job_descriptions` collection) and must implement the same startup dim-check against the same value — tracked as a follow-up task when `jobflow-classifier` is implemented; out of scope here. |
 | `INTERNAL_API_TOKEN` | `<secret>` | Shared bearer token for MCP auth (from k8s Secret) |
 | `GEMINI_API_KEY` | _(optional, dev only)_ | Required only when `LLM_BACKEND=gemini` |
 
@@ -511,7 +512,7 @@ consumer of that contract either. Only downstream consumers are listed.
 1. Write contract artifacts (proto + Kafka schema + MCP tool + SQL migration + impact-map update + architecture.md Kafka row + architecture.md services table: resume-service "Python + FastAPI" → "Python + gRPC + FastMCP") — also delete stale `services/resume-service/` directory before any restructuring begins
 2. Expand domain models — ResumeData + ResumeChunk (no embedding) + all domain interfaces including IEmbeddingClient + IFileStorage (depends on: Write contract artifacts)
 3. Restructure into domain/application/infrastructure/api layers — move existing code, delete standalone artifacts, move sample_resumes to tests/fixtures, add composition root skeleton (depends on: Expand domain models)
-4. Replace Gemini with JobflowLLMClient — BatchedLLMExtractor + ILLMClient + config factory + MAX_LLM_INPUT_CHARS truncation + NER token-based truncation guard (getattr(model.config, 'max_len', 384)) (depends on: Restructure into domain/application/infrastructure/api layers)
+4. Replace Gemini with JobflowLLMClient — BatchedLLMExtractor + ILLMClient + config factory + MAX_LLM_INPUT_CHARS truncation + NER word-count truncation guard (words_splitter[:max_len], max_len=getattr(model.config,'max_len',384)) (depends on: Restructure into domain/application/infrastructure/api layers)
 5. Add JobflowEmbeddingClient — embed_batch batched MCP call + startup dim-check (depends on: Restructure into domain/application/infrastructure/api layers)
 6. Add PostgresResumeRepository — asyncpg save + get_by_id + get_latest_by_user (depends on: Restructure into domain/application/infrastructure/api layers)
 7. Add QdrantVectorRepository — upsert ResumeChunkVector (write-only; no GetResume dependency; Qdrant unavailability must not affect read RPCs) (depends on: Restructure into domain/application/infrastructure/api layers)
