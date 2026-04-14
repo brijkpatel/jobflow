@@ -1,28 +1,27 @@
 {
-  "current": null,
-  "queue": [
-    {
-      "id": "T01",
-      "description": "contracts: SQL migrations — all service schemas",
-      "depends_on": [],
-      "status": "ready",
-      "parent_id": null,
-      "subtask_ids": [],
-      "steps": {
-        "plan_written": false,
-        "plan_approved": false,
-        "implemented": false,
-        "regression": false,
-        "compliance": false,
-        "developer": false,
-        "qa": false,
-        "specialist": false,
-        "user_review": false,
-        "merged": false
-      },
-      "plan": "docs/plans/implementation-plan.md",
-      "notes": "Additive-only numbered migrations in contracts/migrations/. Schemas: auth.users, auth.organizations, resumes.resumes, resumes.resume_versions, jobs.jobs, jobs.crawled_jobs, applications.applications, applications.application_events, preferences.user_preferences, auth.user_credentials."
+  "current": {
+    "id": "T01",
+    "description": "contracts: SQL migrations — all service schemas",
+    "depends_on": [],
+    "status": "ready",
+    "parent_id": null,
+    "subtask_ids": [],
+    "steps": {
+      "plan_written": false,
+      "plan_approved": false,
+      "implemented": false,
+      "regression": false,
+      "compliance": false,
+      "developer": false,
+      "qa": false,
+      "specialist": false,
+      "user_review": false,
+      "merged": false
     },
+    "plan": "docs/plans/implementation-plan.md",
+    "notes": "Additive-only numbered migrations in contracts/migrations/. Schemas: auth.users, auth.organizations, resumes.resumes, resumes.resume_versions, jobs.jobs, jobs.crawled_jobs, applications.applications, applications.application_events, preferences.user_preferences, auth.user_credentials."
+  },
+  "queue": [
     {
       "id": "T02",
       "description": "contracts: Kafka JSON schemas — all topics + DLQs",
