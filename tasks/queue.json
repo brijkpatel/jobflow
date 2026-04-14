@@ -1,46 +1,5 @@
 {
-  "current": {
-    "id": "20260412101324319",
-    "description": "resume-service: convert standalone parser to microservice",
-    "branch": "task/resume-service/microservice-conversion",
-    "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
-    "steps": {
-      "plan_written": true,
-      "plan_approved": true,
-      "implemented": true,
-      "regression": true,
-      "compliance": true,
-      "developer": true,
-      "qa": true,
-      "specialist": true,
-      "user_review": true,
-      "merged": true
-    },
-    "last_completed": "merged",
-    "started": "2026-04-12T10:13:24.321Z",
-    "updated": "2026-04-14T03:48:42.615Z",
-    "parent_id": null,
-    "subtask_ids": [
-      "20260413185549851",
-      "20260413185549851001",
-      "20260413185549851002",
-      "20260413185549851003",
-      "20260413185549851004",
-      "20260413185549851005",
-      "20260413185549851006",
-      "20260413185549851007",
-      "20260413185549851008",
-      "20260413185549851009",
-      "20260413185549851010",
-      "20260413185549851011",
-      "20260413185549851012",
-      "20260413185549851013",
-      "20260413185549851014",
-      "20260413185549851015"
-    ],
-    "depends_on": [],
-    "status": "ready"
-  },
+  "current": null,
   "queue": [
     {
       "id": "T01",
@@ -1126,5 +1085,48 @@
       "status": "ready"
     }
   ],
-  "completed": []
+  "completed": [
+    {
+      "id": "20260412101324319",
+      "description": "resume-service: convert standalone parser to microservice",
+      "branch": "task/resume-service/microservice-conversion",
+      "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
+      "steps": {
+        "plan_written": true,
+        "plan_approved": true,
+        "implemented": true,
+        "regression": true,
+        "compliance": true,
+        "developer": true,
+        "qa": true,
+        "specialist": true,
+        "user_review": true,
+        "merged": true
+      },
+      "last_completed": "merged",
+      "started": "2026-04-12T10:13:24.321Z",
+      "updated": "2026-04-14T03:48:42.650Z",
+      "parent_id": null,
+      "subtask_ids": [
+        "20260413185549851",
+        "20260413185549851001",
+        "20260413185549851002",
+        "20260413185549851003",
+        "20260413185549851004",
+        "20260413185549851005",
+        "20260413185549851006",
+        "20260413185549851007",
+        "20260413185549851008",
+        "20260413185549851009",
+        "20260413185549851010",
+        "20260413185549851011",
+        "20260413185549851012",
+        "20260413185549851013",
+        "20260413185549851014",
+        "20260413185549851015"
+      ],
+      "depends_on": [],
+      "status": "ready"
+    }
+  ]
 }
