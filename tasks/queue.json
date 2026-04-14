@@ -1,11 +1,10 @@
 {
   "current": {
-    "id": "T01",
-    "description": "contracts: SQL migrations — all service schemas",
-    "depends_on": [],
-    "status": "ready",
-    "parent_id": null,
-    "subtask_ids": [],
+    "id": "20260413185549851001",
+    "description": "Expand domain models \u2014 ResumeData + ResumeChunk (no embedding) + all domain interfaces including IEmbeddingClient + IFileStorage",
+    "branch": "task/resume-service/microservice-conversion",
+    "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
+    "plan_type": "l3",
     "steps": {
       "plan_written": false,
       "plan_approved": false,
@@ -18,13 +17,40 @@
       "user_review": false,
       "merged": false
     },
-    "plan": "docs/plans/implementation-plan.md",
-    "notes": "Additive-only numbered migrations in contracts/migrations/. Schemas: auth.users, auth.organizations, resumes.resumes, resumes.resume_versions, jobs.jobs, jobs.crawled_jobs, applications.applications, applications.application_events, preferences.user_preferences, auth.user_credentials."
+    "last_completed": null,
+    "started": "2026-04-13T18:55:49.851Z",
+    "updated": "2026-04-13T18:55:49.851Z",
+    "parent_id": "20260412101324319",
+    "subtask_ids": [],
+    "depends_on": [],
+    "status": "in_progress"
   },
   "queue": [
     {
+      "id": "T01",
+      "description": "contracts: SQL migrations \u2014 all service schemas",
+      "depends_on": [],
+      "status": "ready",
+      "parent_id": null,
+      "subtask_ids": [],
+      "steps": {
+        "plan_written": false,
+        "plan_approved": false,
+        "implemented": false,
+        "regression": false,
+        "compliance": false,
+        "developer": false,
+        "qa": false,
+        "specialist": false,
+        "user_review": false,
+        "merged": false
+      },
+      "plan": "docs/plans/implementation-plan.md",
+      "notes": "Additive-only numbered migrations in contracts/migrations/. Schemas: auth.users, auth.organizations, resumes.resumes, resumes.resume_versions, jobs.jobs, jobs.crawled_jobs, applications.applications, applications.application_events, preferences.user_preferences, auth.user_credentials."
+    },
+    {
       "id": "T02",
-      "description": "contracts: Kafka JSON schemas — all topics + DLQs",
+      "description": "contracts: Kafka JSON schemas \u2014 all topics + DLQs",
       "depends_on": [],
       "status": "ready",
       "parent_id": null,
@@ -46,7 +72,7 @@
     },
     {
       "id": "T03",
-      "description": "contracts: gRPC proto — resume-service ↔ jobflow-api",
+      "description": "contracts: gRPC proto \u2014 resume-service \u2194 jobflow-api",
       "depends_on": [],
       "status": "ready",
       "parent_id": null,
@@ -68,7 +94,7 @@
     },
     {
       "id": "T04",
-      "description": "contracts: MCP tool definitions — all 5 tools",
+      "description": "contracts: MCP tool definitions \u2014 all 5 tools",
       "depends_on": [],
       "status": "ready",
       "parent_id": null,
@@ -90,7 +116,7 @@
     },
     {
       "id": "T05",
-      "description": "contracts: A2A agent cards — all 4 specialist agents",
+      "description": "contracts: A2A agent cards \u2014 all 4 specialist agents",
       "depends_on": [],
       "status": "ready",
       "parent_id": null,
@@ -112,7 +138,7 @@
     },
     {
       "id": "T06",
-      "description": "training: data generation — scrape jobs + Claude API synthetic data",
+      "description": "training: data generation \u2014 scrape jobs + Claude API synthetic data",
       "depends_on": [],
       "status": "ready",
       "parent_id": null,
@@ -134,7 +160,7 @@
     },
     {
       "id": "T07",
-      "description": "training: fine-tune Gemma 3n E2B — QLoRA on RunPod",
+      "description": "training: fine-tune Gemma 3n E2B \u2014 QLoRA on RunPod",
       "depends_on": [
         "T06"
       ],
@@ -158,7 +184,7 @@
     },
     {
       "id": "T08",
-      "description": "training: export model — merge LoRA, GGUF Q4_K_M, LiteRT-LM ARM format, push to HuggingFace",
+      "description": "training: export model \u2014 merge LoRA, GGUF Q4_K_M, LiteRT-LM ARM format, push to HuggingFace",
       "depends_on": [
         "T07"
       ],
@@ -178,11 +204,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "training/export.py. Steps: merge LoRA adapters → GGUF Q4_K_M (llama.cpp) → LiteRT-LM conversion (Google LiteRT-LM CLI) → push to brijkpatel/jobflow-gemma3n-e2b on HuggingFace Hub. Tag as v1.0."
+      "notes": "training/export.py. Steps: merge LoRA adapters \u2192 GGUF Q4_K_M (llama.cpp) \u2192 LiteRT-LM conversion (Google LiteRT-LM CLI) \u2192 push to brijkpatel/jobflow-gemma3n-e2b on HuggingFace Hub. Tag as v1.0."
     },
     {
       "id": "T09",
-      "description": "service: jobflow-llm — LiteRT-LM MCP inference server",
+      "description": "service: jobflow-llm \u2014 LiteRT-LM MCP inference server",
       "depends_on": [
         "T04",
         "T08"
@@ -203,11 +229,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "services/jobflow-llm/. Python. MCP tool server at /mcp: generate(prompt, max_tokens, temperature) → text. Loads model from HuggingFace Hub on startup via JOBFLOW_MODEL_VERSION env var. Internal only — NetworkPolicy blocks all external. KEDA: MCP request queue depth (min 1, max 8). LangFuse tracing on every generate() call."
+      "notes": "services/jobflow-llm/. Python. MCP tool server at /mcp: generate(prompt, max_tokens, temperature) \u2192 text. Loads model from HuggingFace Hub on startup via JOBFLOW_MODEL_VERSION env var. Internal only \u2014 NetworkPolicy blocks all external. KEDA: MCP request queue depth (min 1, max 8). LangFuse tracing on every generate() call."
     },
     {
       "id": "T10",
-      "description": "service: resume-service — parse, embed, store resumes",
+      "description": "service: resume-service \u2014 parse, embed, store resumes",
       "depends_on": [
         "T01",
         "T03",
@@ -229,11 +255,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "services/resume-service/. Python + FastAPI. gRPC server (from resume.proto). MCP tool server at /mcp: fetch_user_resume(resume_id). PDF→OCI Object Storage. all-MiniLM-L6-v2 embedding (384-dim, must match classifier). Qdrant: resume_chunks collection. HPA CPU (min 1, max 5). EMBEDDING_MODEL_VERSION env var."
+      "notes": "services/resume-service/. Python + FastAPI. gRPC server (from resume.proto). MCP tool server at /mcp: fetch_user_resume(resume_id). PDF\u2192OCI Object Storage. all-MiniLM-L6-v2 embedding (384-dim, must match classifier). Qdrant: resume_chunks collection. HPA CPU (min 1, max 5). EMBEDDING_MODEL_VERSION env var."
     },
     {
       "id": "T11",
-      "description": "service: jobflow-api — public REST API, auth, SSE",
+      "description": "service: jobflow-api \u2014 public REST API, auth, SSE",
       "depends_on": [
         "T01",
         "T03",
@@ -255,11 +281,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "services/jobflow-api/. Python + FastAPI. Auth: JWT (python-jose + bcrypt). gRPC client to resume-service. SSE endpoint for real-time application status. HITL approval/reject endpoints → resume A2A task. Application history endpoints. Credential management (Fernet AES-256, key from OCI Vault via ESO). Pre-signed OCI URLs. HPA RPS (min 2, max 10)."
+      "notes": "services/jobflow-api/. Python + FastAPI. Auth: JWT (python-jose + bcrypt). gRPC client to resume-service. SSE endpoint for real-time application status. HITL approval/reject endpoints \u2192 resume A2A task. Application history endpoints. Credential management (Fernet AES-256, key from OCI Vault via ESO). Pre-signed OCI URLs. HPA RPS (min 2, max 10)."
     },
     {
       "id": "T12",
-      "description": "service: jobflow-web — Next.js dashboard SPA",
+      "description": "service: jobflow-web \u2014 Next.js dashboard SPA",
       "depends_on": [
         "T11"
       ],
@@ -279,11 +305,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "web/. Next.js TypeScript. Static export → OCI CDN. Pages: resume upload + management, preferences config, application history (list + detail), HITL approval UI (editable cover letter + Q&A, approve/reject). SSE client for real-time updates. No backend logic — REST only."
+      "notes": "web/. Next.js TypeScript. Static export \u2192 OCI CDN. Pages: resume upload + management, preferences config, application history (list + detail), HITL approval UI (editable cover letter + Q&A, approve/reject). SSE client for real-time updates. No backend logic \u2014 REST only."
     },
     {
       "id": "T13",
-      "description": "service: jobflow-crawler — job board scraper + dedup",
+      "description": "service: jobflow-crawler \u2014 job board scraper + dedup",
       "depends_on": [
         "T01",
         "T02"
@@ -308,7 +334,7 @@
     },
     {
       "id": "T14",
-      "description": "service: jobflow-classifier — ADK agent, enrich + embed jobs",
+      "description": "service: jobflow-classifier \u2014 ADK agent, enrich + embed jobs",
       "depends_on": [
         "T01",
         "T02",
@@ -335,7 +361,7 @@
     },
     {
       "id": "T15",
-      "description": "service: jobflow-matcher — vector match jobs to resumes",
+      "description": "service: jobflow-matcher \u2014 vector match jobs to resumes",
       "depends_on": [
         "T01",
         "T02",
@@ -357,11 +383,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "services/jobflow-matcher/. Python + FastAPI. Consumes classified-jobs Kafka topic. Queries Qdrant resume_chunks with job embedding → top-K per user. Score = skill_overlap×0.4 + semantic_sim×0.6. Filters by user preferences (min_score, location, salary_min, job_type, excluded_companies). Creates applications row (status=draft). Publishes match-results. KEDA: classified-jobs consumer lag (min 0, max 5)."
+      "notes": "services/jobflow-matcher/. Python + FastAPI. Consumes classified-jobs Kafka topic. Queries Qdrant resume_chunks with job embedding \u2192 top-K per user. Score = skill_overlap\u00d70.4 + semantic_sim\u00d70.6. Filters by user preferences (min_score, location, salary_min, job_type, excluded_companies). Creates applications row (status=draft). Publishes match-results. KEDA: classified-jobs consumer lag (min 0, max 5)."
     },
     {
       "id": "T16",
-      "description": "service: jobflow-research-agent — company intel via web search",
+      "description": "service: jobflow-research-agent \u2014 company intel via web search",
       "depends_on": [
         "T04",
         "T05",
@@ -387,7 +413,7 @@
     },
     {
       "id": "T17",
-      "description": "service: jobflow-gap-agent — skill gap analysis + apply recommendation",
+      "description": "service: jobflow-gap-agent \u2014 skill gap analysis + apply recommendation",
       "depends_on": [
         "T04",
         "T05",
@@ -409,11 +435,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "services/jobflow-gap-agent/. Python + Google ADK. A2A server (exposes gap-agent.json card). Input: {job_requirements, user_resume, user_history}. Output: {matched_skills[], gaps[], emphasis_areas[], dealbreakers[], apply_recommendation: yes|no|maybe, reasoning}. apply=no → ApplicationAgent skips entire pipeline. KEDA: A2A task queue (min 0, max 3)."
+      "notes": "services/jobflow-gap-agent/. Python + Google ADK. A2A server (exposes gap-agent.json card). Input: {job_requirements, user_resume, user_history}. Output: {matched_skills[], gaps[], emphasis_areas[], dealbreakers[], apply_recommendation: yes|no|maybe, reasoning}. apply=no \u2192 ApplicationAgent skips entire pipeline. KEDA: A2A task queue (min 0, max 3)."
     },
     {
       "id": "T18",
-      "description": "service: jobflow-critic-agent — score resume/cover letter, enable reflexion loop",
+      "description": "service: jobflow-critic-agent \u2014 score resume/cover letter, enable reflexion loop",
       "depends_on": [
         "T04",
         "T05",
@@ -439,7 +465,7 @@
     },
     {
       "id": "T19",
-      "description": "service: jobflow-prep-agent — async interview prep PDF generation",
+      "description": "service: jobflow-prep-agent \u2014 async interview prep PDF generation",
       "depends_on": [
         "T04",
         "T05",
@@ -461,11 +487,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "services/jobflow-prep-agent/. Python + Google ADK. A2A server (exposes prep-agent.json card). Triggered post-submit (non-blocking). Generates likely interview questions from JD + user background. Generates suggested answers grounded in resume. Stores PDF → OCI Object Storage → publishes application-events{type=prep_ready}. KEDA: A2A task queue (min 0, max 2)."
+      "notes": "services/jobflow-prep-agent/. Python + Google ADK. A2A server (exposes prep-agent.json card). Triggered post-submit (non-blocking). Generates likely interview questions from JD + user background. Generates suggested answers grounded in resume. Stores PDF \u2192 OCI Object Storage \u2192 publishes application-events{type=prep_ready}. KEDA: A2A task queue (min 0, max 2)."
     },
     {
       "id": "T20",
-      "description": "service: jobflow-application — ADK orchestrator, full pipeline + HITL",
+      "description": "service: jobflow-application \u2014 ADK orchestrator, full pipeline + HITL",
       "depends_on": [
         "T01",
         "T02",
@@ -494,11 +520,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "services/jobflow-application/. Python + Google ADK. Consumes match-results Kafka topic. Phase 1 (parallel A2A): ResearchAgent + GapAnalyzerAgent simultaneously. Merge → if apply=no, STOP. Phase 2 (sequential reflexion): tailor_resume → CriticAgent (max 3x) → cover_letter → CriticAgent (max 3x) → qa_answers → build_summary. HITL: checkpoint to Redis adk:checkpoint:{app_id}, webhook to jobflow-api, SSE to web. Post-submit (async): A2A → PrepAgent. MCP: form_filler (Playwright Phase 2). ADK state persisted to Redis (pod-restart safe, 7d TTL). KEDA: match-results lag (min 0, max 5)."
+      "notes": "services/jobflow-application/. Python + Google ADK. Consumes match-results Kafka topic. Phase 1 (parallel A2A): ResearchAgent + GapAnalyzerAgent simultaneously. Merge \u2192 if apply=no, STOP. Phase 2 (sequential reflexion): tailor_resume \u2192 CriticAgent (max 3x) \u2192 cover_letter \u2192 CriticAgent (max 3x) \u2192 qa_answers \u2192 build_summary. HITL: checkpoint to Redis adk:checkpoint:{app_id}, webhook to jobflow-api, SSE to web. Post-submit (async): A2A \u2192 PrepAgent. MCP: form_filler (Playwright Phase 2). ADK state persisted to Redis (pod-restart safe, 7d TTL). KEDA: match-results lag (min 0, max 5)."
     },
     {
       "id": "T21",
-      "description": "service: jobflow-notifier — email via Resend, Kafka consumer (Go)",
+      "description": "service: jobflow-notifier \u2014 email via Resend, Kafka consumer (Go)",
       "depends_on": [
         "T02",
         "T04",
@@ -524,7 +550,7 @@
     },
     {
       "id": "T22",
-      "description": "infra: Terraform — OKE cluster + OCI resources (Object Storage, Vault, OCIR, DNS)",
+      "description": "infra: Terraform \u2014 OKE cluster + OCI resources (Object Storage, Vault, OCIR, DNS)",
       "depends_on": [],
       "status": "ready",
       "parent_id": null,
@@ -542,11 +568,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "infrastructure/terraform/. Modules: oke/ (cluster + node pool ARM A1, VPC), object-storage/ (resumes-raw, resumes-tailored buckets), container-registry/ (OCIR), vault/ (OCI Vault for secrets), dns/ (domain + DNS), ingress/ (Nginx + cert-manager). ESO for Vault→K8s Secret sync."
+      "notes": "infrastructure/terraform/. Modules: oke/ (cluster + node pool ARM A1, VPC), object-storage/ (resumes-raw, resumes-tailored buckets), container-registry/ (OCIR), vault/ (OCI Vault for secrets), dns/ (domain + DNS), ingress/ (Nginx + cert-manager). ESO for Vault\u2192K8s Secret sync."
     },
     {
       "id": "T23",
-      "description": "infra: Helm charts — shared services (Redpanda, Postgres, Redis, Qdrant, observability)",
+      "description": "infra: Helm charts \u2014 shared services (Redpanda, Postgres, Redis, Qdrant, observability)",
       "depends_on": [
         "T22"
       ],
@@ -570,7 +596,7 @@
     },
     {
       "id": "T24",
-      "description": "infra: Helm charts — all 13 application services with KEDA ScaledObjects + NetworkPolicies",
+      "description": "infra: Helm charts \u2014 all 13 application services with KEDA ScaledObjects + NetworkPolicies",
       "depends_on": [
         "T23",
         "T21"
@@ -595,7 +621,7 @@
     },
     {
       "id": "T25",
-      "description": "infra: CI/CD — GitHub Actions pipelines for all service repos",
+      "description": "infra: CI/CD \u2014 GitHub Actions pipelines for all service repos",
       "depends_on": [
         "T22"
       ],
@@ -615,11 +641,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "GitHub Actions workflows. On PR: lint + test (pytest/go test). On merge to main: docker build --platform linux/arm64 --push → OCIR, helm upgrade --install in OKE, smoke test (health endpoints). Self-hosted runner on Oracle Ampere A1 — native ARM64 builds, no QEMU."
+      "notes": "GitHub Actions workflows. On PR: lint + test (pytest/go test). On merge to main: docker build --platform linux/arm64 --push \u2192 OCIR, helm upgrade --install in OKE, smoke test (health endpoints). Self-hosted runner on Oracle Ampere A1 \u2014 native ARM64 builds, no QEMU."
     },
     {
       "id": "T26",
-      "description": "testing: integration tests — full pipeline with mocked LLM",
+      "description": "testing: integration tests \u2014 full pipeline with mocked LLM",
       "depends_on": [
         "T20"
       ],
@@ -639,7 +665,7 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "Full pipeline test: crawl a fake job → classify → match against test resume → application pipeline (LLM mocked). Verify: Kafka message flow, Postgres state transitions, Qdrant writes, Redis checkpoint, HITL flow (approve + reject paths). Run in docker-compose local environment."
+      "notes": "Full pipeline test: crawl a fake job \u2192 classify \u2192 match against test resume \u2192 application pipeline (LLM mocked). Verify: Kafka message flow, Postgres state transitions, Qdrant writes, Redis checkpoint, HITL flow (approve + reject paths). Run in docker-compose local environment."
     },
     {
       "id": "T27",
@@ -665,37 +691,11 @@
         "merged": false
       },
       "plan": "docs/plans/implementation-plan.md",
-      "notes": "Smoke: health endpoint checks for all services on OKE staging. Single real job through full pipeline. Load: k6 — 100 concurrent applications, verify KEDA auto-scaling fires correctly, check Grafana dashboards (Kafka lag, LLM queue, application funnel)."
+      "notes": "Smoke: health endpoint checks for all services on OKE staging. Single real job through full pipeline. Load: k6 \u2014 100 concurrent applications, verify KEDA auto-scaling fires correctly, check Grafana dashboards (Kafka lag, LLM queue, application funnel)."
     },
     {
       "id": "20260413185549851",
-      "description": "Write contract artifacts (proto + Kafka schema + MCP tool + SQL migration + impact-map update + architecture.md Kafka row + architecture.md services table: resume-service \"Python + FastAPI\" → \"Python + gRPC + FastMCP\") — also delete stale `services/resume-service/` directory before any restructuring begins",
-      "branch": "task/resume-service/microservice-conversion",
-      "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
-      "plan_type": "l3",
-      "steps": {
-        "plan_written": false,
-        "plan_approved": false,
-        "implemented": false,
-        "regression": false,
-        "compliance": false,
-        "developer": false,
-        "qa": false,
-        "specialist": false,
-        "user_review": false,
-        "merged": false
-      },
-      "last_completed": null,
-      "started": "2026-04-13T18:55:49.851Z",
-      "updated": "2026-04-13T18:55:49.851Z",
-      "parent_id": "20260412101324319",
-      "subtask_ids": [],
-      "depends_on": [],
-      "status": "ready"
-    },
-    {
-      "id": "20260413185549851001",
-      "description": "Expand domain models — ResumeData + ResumeChunk (no embedding) + all domain interfaces including IEmbeddingClient + IFileStorage",
+      "description": "Write contract artifacts (proto + Kafka schema + MCP tool + SQL migration + impact-map update + architecture.md Kafka row + architecture.md services table: resume-service \"Python + FastAPI\" \u2192 \"Python + gRPC + FastMCP\") \u2014 also delete stale `services/resume-service/` directory before any restructuring begins",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -721,7 +721,7 @@
     },
     {
       "id": "20260413185549851002",
-      "description": "Restructure into domain/application/infrastructure/api layers — move existing code, delete standalone artifacts, move sample_resumes to tests/fixtures, add composition root skeleton",
+      "description": "Restructure into domain/application/infrastructure/api layers \u2014 move existing code, delete standalone artifacts, move sample_resumes to tests/fixtures, add composition root skeleton",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -747,7 +747,7 @@
     },
     {
       "id": "20260413185549851003",
-      "description": "Replace Gemini with JobflowLLMClient — BatchedLLMExtractor + ILLMClient + config factory + MAX_LLM_INPUT_CHARS truncation + NER word-count guard: [tok for tok,_s,_e in words_splitter(text)][:max_len] joined to str, max_len=getattr(model.config,'max_len',384)",
+      "description": "Replace Gemini with JobflowLLMClient \u2014 BatchedLLMExtractor + ILLMClient + config factory + MAX_LLM_INPUT_CHARS truncation + NER word-count guard: [tok for tok,_s,_e in words_splitter(text)][:max_len] joined to str, max_len=getattr(model.config,'max_len',384)",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -773,7 +773,7 @@
     },
     {
       "id": "20260413185549851004",
-      "description": "Add JobflowEmbeddingClient — embed_batch batched MCP call + startup dim-check",
+      "description": "Add JobflowEmbeddingClient \u2014 embed_batch batched MCP call + startup dim-check",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -799,7 +799,7 @@
     },
     {
       "id": "20260413185549851005",
-      "description": "Add PostgresResumeRepository — asyncpg save + get_by_id + get_latest_by_user",
+      "description": "Add PostgresResumeRepository \u2014 asyncpg save + get_by_id + get_latest_by_user",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -825,7 +825,7 @@
     },
     {
       "id": "20260413185549851006",
-      "description": "Add QdrantVectorRepository — upsert ResumeChunkVector (write-only; no GetResume dependency; Qdrant unavailability must not affect read RPCs)",
+      "description": "Add QdrantVectorRepository \u2014 upsert ResumeChunkVector (write-only; no GetResume dependency; Qdrant unavailability must not affect read RPCs)",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -851,7 +851,7 @@
     },
     {
       "id": "20260413185549851007",
-      "description": "Add Kafka publisher — resume-parsed event with tenant_id",
+      "description": "Add Kafka publisher \u2014 resume-parsed event with tenant_id",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -877,7 +877,7 @@
     },
     {
       "id": "20260413185549851008",
-      "description": "Add OCI storage client — fetch object by path",
+      "description": "Add OCI storage client \u2014 fetch object by path",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -903,7 +903,7 @@
     },
     {
       "id": "20260413185549851009",
-      "description": "Add gRPC API layer — ParseResume + GetResume + GetLatestResume servicer, generated stubs from proto",
+      "description": "Add gRPC API layer \u2014 ParseResume + GetResume + GetLatestResume servicer, generated stubs from proto",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -929,7 +929,7 @@
     },
     {
       "id": "20260413185549851010",
-      "description": "Add MCP tool server — fetch_user_resume via FastMCP on MCP_PORT with X-Internal-Token auth, trimmed response shape",
+      "description": "Add MCP tool server \u2014 fetch_user_resume via FastMCP on MCP_PORT with X-Internal-Token auth, trimmed response shape",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -955,7 +955,7 @@
     },
     {
       "id": "20260413185549851011",
-      "description": "Wire ParseResumeUseCase — compose all adapters: OCI fetch → parse → extract → embed_batch → save → upsert → publish",
+      "description": "Wire ParseResumeUseCase \u2014 compose all adapters: OCI fetch \u2192 parse \u2192 extract \u2192 embed_batch \u2192 save \u2192 upsert \u2192 publish",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -981,7 +981,7 @@
     },
     {
       "id": "20260413185549851012",
-      "description": "pyproject.toml + Dockerfile — rename service, update deps, multi-stage ARM64 build with baked GLiNER weights, EXPOSE 50051 8090 8080",
+      "description": "pyproject.toml + Dockerfile \u2014 rename service, update deps, multi-stage ARM64 build with baked GLiNER weights, EXPOSE 50051 8090 8080",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -1007,7 +1007,7 @@
     },
     {
       "id": "20260413185549851013",
-      "description": "Update all tests — path changes + new field coverage + mock ILLMClient + mock IEmbeddingClient + MCP auth tests + Kafka publish verification",
+      "description": "Update all tests \u2014 path changes + new field coverage + mock ILLMClient + mock IEmbeddingClient + MCP auth tests + Kafka publish verification",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -1033,7 +1033,7 @@
     },
     {
       "id": "20260413185549851014",
-      "description": "Wire main.py composition root — start gRPC + MCP + health servers with all adapters",
+      "description": "Wire main.py composition root \u2014 start gRPC + MCP + health servers with all adapters",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
@@ -1059,7 +1059,7 @@
     },
     {
       "id": "20260413185549851015",
-      "description": "Wire LangFuse tracing — replace no-op TracingClientStub with real LangFuse client in LangfuseTracingClient(ITracingClient); add LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY + LANGFUSE_HOST env vars",
+      "description": "Wire LangFuse tracing \u2014 replace no-op TracingClientStub with real LangFuse client in LangfuseTracingClient(ITracingClient); add LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY + LANGFUSE_HOST env vars",
       "branch": "task/resume-service/microservice-conversion",
       "plan": "services/resume-parser/docs/plans/2026-04-12-microservice-conversion.md",
       "plan_type": "l3",
