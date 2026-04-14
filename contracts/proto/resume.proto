@@ -1,6 +1,8 @@
 syntax = "proto3";
 package resume;
 
+import "google/protobuf/timestamp.proto";
+
 service ResumeService {
   rpc ParseResume      (ParseResumeRequest)       returns (ParseResumeResponse);
   rpc GetResume        (GetResumeRequest)          returns (GetResumeResponse);
@@ -39,7 +41,7 @@ message ResumeProto {
   repeated string interests  = 13;
   repeated string languages  = 14;
   repeated string awards     = 15;
-  string created_at = 16;  // ISO-8601
+  google.protobuf.Timestamp created_at = 16;
 }
 
 message ContactProto {
