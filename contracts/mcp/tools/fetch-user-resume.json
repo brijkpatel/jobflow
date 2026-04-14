@@ -34,10 +34,11 @@
         "type": "array",
         "items": {
           "type": "object",
-          "required": ["degree", "institution"],
+          "required": ["institution"],
           "properties": {
-            "degree":      { "type": "string" },
-            "institution": { "type": "string" }
+            "institution":   { "type": "string" },
+            "degree":        { "type": "string" },
+            "field_of_study": { "type": "string" }
           }
         }
       }
