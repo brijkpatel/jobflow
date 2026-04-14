@@ -1,7 +1,14 @@
 {
-  "event": "resume-parsed",
-  "resume_id": "<uuid>",
-  "user_id": "<uuid>",
-  "tenant_id": "<uuid>",
-  "created_at": "<iso8601>"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ResumeParsed",
+  "type": "object",
+  "required": ["event", "resume_id", "user_id", "tenant_id", "created_at"],
+  "properties": {
+    "event":      { "type": "string", "const": "resume-parsed" },
+    "resume_id":  { "type": "string", "format": "uuid" },
+    "user_id":    { "type": "string", "format": "uuid" },
+    "tenant_id":  { "type": "string", "format": "uuid" },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
 }

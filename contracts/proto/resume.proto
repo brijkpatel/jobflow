@@ -69,7 +69,7 @@ message EducationProto {
   string field_of_study = 3;
   string start_date     = 4;
   string end_date       = 5;
-  float  gpa            = 6;
+  double gpa            = 6;
   string honors         = 7;
 }
 

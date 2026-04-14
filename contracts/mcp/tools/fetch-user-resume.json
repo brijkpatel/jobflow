@@ -21,6 +21,7 @@
         "type": "array",
         "items": {
           "type": "object",
+          "required": ["title", "company"],
           "properties": {
             "title":            { "type": "string" },
             "company":          { "type": "string" },
@@ -33,6 +34,7 @@
         "type": "array",
         "items": {
           "type": "object",
+          "required": ["degree", "institution"],
           "properties": {
             "degree":      { "type": "string" },
             "institution": { "type": "string" }
