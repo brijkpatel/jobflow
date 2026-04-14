@@ -14,11 +14,11 @@
       "qa": true,
       "specialist": true,
       "user_review": true,
-      "merged": false
+      "merged": true
     },
-    "last_completed": "user_review",
+    "last_completed": "merged",
     "started": "2026-04-12T10:13:24.321Z",
-    "updated": "2026-04-14T03:48:40.047Z",
+    "updated": "2026-04-14T03:48:42.615Z",
     "parent_id": null,
     "subtask_ids": [
       "20260413185549851",
