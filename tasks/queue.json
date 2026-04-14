@@ -11,14 +11,14 @@
       "regression": true,
       "compliance": true,
       "developer": true,
-      "qa": false,
+      "qa": true,
       "specialist": false,
       "user_review": false,
       "merged": false
     },
-    "last_completed": "developer",
+    "last_completed": "qa",
     "started": "2026-04-12T10:13:24.321Z",
-    "updated": "2026-04-14T03:30:42.342Z",
+    "updated": "2026-04-14T03:33:11.334Z",
     "parent_id": null,
     "subtask_ids": [
       "20260413185549851",
