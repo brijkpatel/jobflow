@@ -12,13 +12,13 @@
       "compliance": true,
       "developer": true,
       "qa": true,
-      "specialist": false,
+      "specialist": true,
       "user_review": false,
       "merged": false
     },
-    "last_completed": "qa",
+    "last_completed": "specialist",
     "started": "2026-04-12T10:13:24.321Z",
-    "updated": "2026-04-14T03:33:11.334Z",
+    "updated": "2026-04-14T03:37:38.501Z",
     "parent_id": null,
     "subtask_ids": [
       "20260413185549851",
