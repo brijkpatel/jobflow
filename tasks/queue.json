@@ -13,12 +13,12 @@
       "developer": true,
       "qa": true,
       "specialist": true,
-      "user_review": false,
+      "user_review": true,
       "merged": false
     },
-    "last_completed": "specialist",
+    "last_completed": "user_review",
     "started": "2026-04-12T10:13:24.321Z",
-    "updated": "2026-04-14T03:37:38.501Z",
+    "updated": "2026-04-14T03:48:40.047Z",
     "parent_id": null,
     "subtask_ids": [
       "20260413185549851",
