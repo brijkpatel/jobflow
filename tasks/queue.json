@@ -8,7 +8,7 @@
       "plan_written": true,
       "plan_approved": true,
       "implemented": true,
-      "regression": false,
+      "regression": true,
       "compliance": false,
       "developer": false,
       "qa": false,
@@ -16,9 +16,9 @@
       "user_review": false,
       "merged": false
     },
-    "last_completed": "implemented",
+    "last_completed": "regression",
     "started": "2026-04-12T10:13:24.321Z",
-    "updated": "2026-04-13T19:10:00.023Z",
+    "updated": "2026-04-14T03:26:37.209Z",
     "parent_id": null,
     "subtask_ids": [
       "20260413185549851",
